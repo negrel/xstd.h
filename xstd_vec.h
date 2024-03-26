@@ -1,0 +1,283 @@
+#ifndef XSTD_VEC_H_INCLUDE
+#define XSTD_VEC_H_INCLUDE
+
+#include <stdbool.h>
+#include <stddef.h>
+
+#ifdef XSTD_VEC_IMPLEMENTATION
+#include <assert.h>
+#include <stdint.h>
+#include <stdlib.h>
+#include <string.h>
+#endif
+
+typedef void *Vec;
+
+struct xstd_vector {
+  // Header
+  size_t cap;
+  size_t len;
+  size_t elem_size;
+
+  // Body
+  // ...
+};
+
+#ifdef __clang__
+#define typeof __typeof__
+#endif
+
+// vec_foreach is a foreach macro for the vector type.
+// The first parameter is the vector on which to iterate. The
+// second is the name of the iterator. The index is accessible
+// with `iterator.index` and the value with `iterator.value`.
+#define vec_foreach(vec, iterator)                                             \
+  for (struct {                                                                \
+         size_t index;                                                         \
+         typeof(*vec) value;                                                   \
+       } iterator = {.value = vec[0]};                                         \
+       iterator.index < vec_len(vec); iterator.value = vec[++iterator.index])
+
+// vec_foreach_ptr does the same as vec_foreach
+// but the iterator contains a ptr instead of a copy.
+#define vec_foreach_ptr(vec, iterator)                                         \
+  for (struct {                                                                \
+         size_t index;                                                         \
+         typeof(vec) value;                                                    \
+       } iterator = {.value = &vec[0]};                                        \
+       iterator.index < vec_len(vec); iterator.value = &vec[++iterator.index])
+
+// vec_push returns a pointer to an element at the end of the vector.
+// This function takes a double pointer to a vector to reallocate in case it's
+// full.
+#define vec_push(vec) ((typeof(*vec))_vec_push((Vec *)vec))
+
+// vec_unshift adds an element at the beginning of the vector and shift
+// other elements.
+#define vec_unshift(vec) ((typeof(*vec))_vec_unshift((void **)vec))
+
+#ifdef XSTD_VEC_IMPLEMENTATION
+#define bodyof_vec(vecptr) ((uintptr_t)(vecptr) + sizeof(struct xstd_vector))
+#define headerof_vec(vecptr)                                                   \
+  ((struct xstd_vector *)((uintptr_t)vecptr - sizeof(struct xstd_vector)))
+
+static size_t sizeof_vector(struct xstd_vector *v) {
+  return sizeof(struct xstd_vector) + v->cap * v->elem_size;
+}
+#endif
+
+// vec_new returns a new zeroed vector with the given capacity to store
+// element of the given size. It the returns a pointer to the first element of
+// the vector.
+Vec vec_new(size_t cap, size_t elem_size);
+
+#ifdef XSTD_VEC_IMPLEMENTATION
+Vec vec_new(size_t cap, size_t elem_size) {
+  size_t header = sizeof(struct xstd_vector);
+  size_t body = cap * elem_size;
+
+  struct xstd_vector *vec = calloc(header + body, 1);
+  if (vec == NULL)
+    return NULL;
+
+  vec->len = 0;
+  vec->cap = cap;
+  vec->elem_size = elem_size;
+
+  return (void *)bodyof_vec(vec);
+}
+#endif
+
+// vec_clone creates a clone of the given vector and returns it.
+Vec vec_clone(Vec);
+
+#ifdef XSTD_VEC_IMPLEMENTATION
+Vec vec_clone(Vec vec) {
+  assert(vec != NULL);
+
+  struct xstd_vector *v = headerof_vec(vec);
+  size_t size_v = sizeof_vector(v);
+
+  void *clone = malloc(size_v);
+  if (clone == NULL)
+    return NULL;
+
+  memcpy(clone, v, size_v);
+
+  return (void *)bodyof_vec(clone);
+}
+#endif
+
+// vec_len returns the current len of the vector.
+size_t vec_len(Vec);
+
+#ifdef XSTD_VEC_IMPLEMENTATION
+size_t vec_len(Vec vec) {
+  assert(vec != NULL);
+
+  return headerof_vec(vec)->len;
+}
+#endif
+
+// vec_cap returns the current capacity of the vector.
+size_t vec_cap(Vec);
+
+#ifdef XSTD_VEC_IMPLEMENTATION
+size_t vec_cap(Vec vec) {
+  assert(vec != NULL);
+
+  return headerof_vec(vec)->cap;
+}
+#endif
+
+// vec_isfull returns true if the vector is full.
+bool vec_isfull(Vec);
+
+#ifdef XSTD_VEC_IMPLEMENTATION
+bool vec_isfull(Vec vec) {
+  assert(vec != NULL);
+
+  return vec_len(vec) == vec_cap(vec);
+}
+#endif
+
+// vec_isempty returns true if the vector size is 0.
+bool vec_isempty(Vec);
+
+#ifdef XSTD_VEC_IMPLEMENTATION
+bool vec_isempty(Vec vec) {
+  assert(vec != NULL);
+
+  return vec_len(vec) == 0;
+}
+#endif
+
+// vec_push_ returns a pointer to an element at the end of the vector.
+// This function takes a pointer to a vector to reallocate it if it's full.
+// An handy vector_push macro exists so you don't have to cast arguments and
+// return type.
+void *_vec_push(Vec *);
+
+#ifdef XSTD_VEC_IMPLEMENTATION
+void *_vec_push(void **vec) {
+  assert(vec != NULL);
+  assert(*vec != NULL);
+
+  if (vec_isfull(*vec)) {
+    // Let's double the capacity of our vector
+    struct xstd_vector *old = headerof_vec(*vec);
+
+    void *new = vec_new(old->cap * 2, old->elem_size);
+    headerof_vec(new)->len = old->len;
+
+    memcpy(new, (void *)bodyof_vec(old), old->cap * old->elem_size);
+    free(old);
+
+    *vec = new;
+  }
+
+  struct xstd_vector *v = headerof_vec(*vec);
+  size_t offset = v->elem_size * v->len;
+
+  v->len++;
+
+  return (void *)(bodyof_vec(v) + offset);
+}
+#endif
+
+// vec_pop removes the last element of the vector and store it in popped
+// if not null.
+void vec_pop(Vec, void *);
+
+#ifdef XSTD_VEC_IMPLEMENTATION
+
+void vec_pop(Vec vec, void *popped) {
+  assert(vec != NULL);
+
+  if (vec_isempty(vec))
+    return;
+
+  struct xstd_vector *v = headerof_vec(vec);
+  v->len--;
+
+  if (popped != NULL)
+    memcpy(popped, (void *)((uintptr_t)vec + v->len * v->elem_size),
+           v->elem_size);
+}
+#endif
+
+// vec_shift removes the first element of the vector and store it shifted
+// if not null. Remaining elements are copied to their index - 1.
+void vec_shift(Vec, void *);
+
+#ifdef XSTD_VEC_IMPLEMENTATION
+void vec_shift(Vec vec, void *shifted) {
+  assert(vec != NULL);
+
+  if (vec_isempty(vec))
+    return;
+
+  struct xstd_vector *v = headerof_vec(vec);
+  if (shifted != NULL)
+    memcpy(shifted, vec, v->elem_size);
+
+  v->len--;
+
+  memmove((void *)bodyof_vec(v),
+          (void *)((uintptr_t)bodyof_vec(v) + v->elem_size),
+          v->len * v->elem_size);
+}
+#endif
+
+// vec_unshift_ adds an element at the beginning of the vector and shift
+// other elements.
+// An handy vector_unshift macro exists so you don't have to cast arguments and
+// return type.
+void *_vec_unshift(Vec *);
+
+#ifdef XSTD_VEC_IMPLEMENTATION
+
+void *_vec_unshift(void **vec) {
+  assert(vec != NULL);
+  assert(*vec != NULL);
+
+  if (vec_isfull(*vec)) {
+    // Let's double the capacity of our vector
+    struct xstd_vector *old = headerof_vec(*vec);
+
+    Vec new = vec_new(old->cap * 2, old->elem_size);
+    headerof_vec(new)->len = old->len + 1;
+
+    // Copy old elements in new at index 1
+    memcpy((void *)((uintptr_t) new + old->elem_size), (void *)bodyof_vec(old),
+           old->cap * old->elem_size);
+    free(old);
+
+    *vec = new;
+
+    return new;
+  }
+
+  struct xstd_vector *v = headerof_vec(*vec);
+  // Move all elements by 1
+  memmove((void *)((uintptr_t)*vec + v->elem_size), *vec,
+          v->len * v->elem_size);
+  v->len++;
+
+  return *vec;
+}
+#endif
+
+// vector_free free the given vector.
+void vec_free(void *);
+
+#ifdef XSTD_VEC_IMPLEMENTATION
+void vec_free(Vec vec) {
+  assert(vec != NULL);
+
+  struct xstd_vector *v = headerof_vec(vec);
+  free(v);
+}
+#endif
+
+#endif
