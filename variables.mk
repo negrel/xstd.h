@@ -6,7 +6,7 @@ TEST_DIR ?= ./tests
 
 CC := clang
 CFLAGS ?=
-CFLAGS := $(CFLAGS) -std=c11 \
+CFLAGS := $(CFLAGS) -std=c11 -g \
 	-Wall -Wextra -Werror -pedantic -Wmissing-prototypes -Wstrict-prototypes \
 	-I$$PWD
 
