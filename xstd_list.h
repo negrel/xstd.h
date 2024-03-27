@@ -6,8 +6,6 @@
 #include <stdio.h>
 #include <string.h>
 
-#define XSTD_LIST_IMPLEMENTATION
-
 #ifdef XSTD_LIST_IMPLEMENTATION
 #include <assert.h>
 #include <stdint.h>
@@ -33,6 +31,7 @@ struct xstd_list {
 #endif
 
 #ifdef XSTD_LIST_IMPLEMENTATION
+// private macros
 #define bodyof_list(listptr) ((uintptr_t)(listptr) + sizeof(struct xstd_list))
 #define headerof_list(listptr)                                                 \
   ((struct xstd_list *)((uintptr_t)listptr - sizeof(struct xstd_list)))
@@ -155,6 +154,34 @@ void list_free_next(List l) {
     list_free(next);
 
   headerof_list(l)->next = headerof_list(NULL);
+}
+#endif
+
+#define list_end(list) ((typeof(list))_list_end(list))
+
+// _list_end returns a pointer to last element of list.
+void *_list_end(List l1);
+
+#ifdef XSTD_LIST_IMPLEMENTATION
+void *_list_end(List l) {
+  void *result = NULL;
+
+  list_foreach_ptr(l, iter) { result = iter.value; }
+
+  return result;
+}
+#endif
+
+// list_append adds second list (l2) at the end of the first list (l1).
+void list_append(List l1, List l2);
+
+#ifdef XSTD_LIST_IMPLEMENTATION
+void list_append(List l1, List l2) {
+  if (l1 == NULL || l2 == NULL)
+    return;
+
+  List tail = list_end(l1);
+  headerof_list(tail)->next = headerof_list(l2);
 }
 #endif
 

@@ -61,6 +61,7 @@ struct xstd_vector {
 #define vec_unshift(vec) ((typeof(*vec))_vec_unshift((void **)vec))
 
 #ifdef XSTD_VEC_IMPLEMENTATION
+// private macros
 #define bodyof_vec(vecptr) ((uintptr_t)(vecptr) + sizeof(struct xstd_vector))
 #define headerof_vec(vecptr)                                                   \
   ((struct xstd_vector *)((uintptr_t)vecptr - sizeof(struct xstd_vector)))

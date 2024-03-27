@@ -100,6 +100,49 @@ START_TEST(test_list_free_next) {
 }
 END_TEST
 
+START_TEST(test_list_end) {
+  int *list = NULL;
+  ck_assert(list_end(list) == NULL);
+
+  int *tail = list_push(&list);
+  ck_assert(*list_end(list) == 0);
+  ck_assert(list_end(list) == tail);
+
+  *list_push(&list) = 2;
+  ck_assert(list_end(list) == tail);
+
+  *list_push(&list) = 3;
+  ck_assert(list_end(list) == tail);
+
+  list_free(list);
+}
+END_TEST
+
+START_TEST(test_list_append) {
+  int *list = NULL;
+  list_push(&list);
+  *list_push(&list) = 2;
+  *list_push(&list) = 3;
+
+  int *list2 = NULL;
+  *list_push(&list2) = 3;
+  *list_push(&list2) = 2;
+  list_push(&list2);
+
+  list_append(list, list2);
+
+  ck_assert_int_eq(*list, 3);
+  ck_assert_int_eq(*list_next(list), 2);
+  ck_assert_int_eq(*list_next(list_next(list)), 0);
+  ck_assert_int_eq(*list_next(list_next(list_next(list))), 0);
+  ck_assert_int_eq(*list_next(list_next(list_next(list_next(list)))), 2);
+  ck_assert_int_eq(*list_next(list_next(list_next(list_next(list_next(list))))),
+                   3);
+
+  list_free(list);
+}
+END_TEST
+
 static Suite *list_suite(void) {
   Suite *s = suite_create("list");
   TCase *tc_core = tcase_create("Core");
@@ -109,6 +152,8 @@ static Suite *list_suite(void) {
   tcase_add_test(tc_core, test_list_remove_head);
   tcase_add_test(tc_core, test_list_free);
   tcase_add_test(tc_core, test_list_free_next);
+  tcase_add_test(tc_core, test_list_end);
+  tcase_add_test(tc_core, test_list_append);
 
   suite_add_tcase(s, tc_core);
 
