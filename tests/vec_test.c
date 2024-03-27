@@ -50,6 +50,8 @@ START_TEST(test_vec_push) {
   ck_assert_int_eq(vec[4], 4);
 
   ck_assert_int_gt(vec_cap(vec), initial_cap);
+
+  vec_free(vec);
 }
 END_TEST
 
@@ -87,6 +89,8 @@ START_TEST(test_vec_pop) {
 
   // Lendth should remain 0
   ck_assert_int_eq(vec_len(vec), 0);
+
+  vec_free(vec);
 }
 END_TEST
 
@@ -125,6 +129,8 @@ START_TEST(test_vec_unshift) {
   ck_assert_int_eq(vec[4], 0);
 
   ck_assert_int_gt(vec_cap(vec), initial_cap);
+
+  vec_free(vec);
 }
 END_TEST
 
@@ -162,6 +168,8 @@ START_TEST(test_vec_shift) {
 
   // Lendth should remain 0
   ck_assert_int_eq(vec_len(vec), 0);
+
+  vec_free(vec);
 }
 END_TEST
 

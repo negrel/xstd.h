@@ -158,7 +158,7 @@ bool vec_isempty(const Vec vec) {
 
 // vec_push_ returns a pointer to an element at the end of the vector.
 // This function takes a pointer to a vector to reallocate it if it's full.
-// An handy vector_push macro exists so you don't have to cast arguments and
+// An handy vec_push macro exists so you don't have to cast arguments and
 // return type.
 void *_vec_push(Vec *);
 
@@ -235,7 +235,7 @@ void vec_shift(Vec vec, void *shifted) {
 
 // vec_unshift_ adds an element at the beginning of the vector and shift
 // other elements.
-// An handy vector_unshift macro exists so you don't have to cast arguments and
+// An handy vec_unshift macro exists so you don't have to cast arguments and
 // return type.
 void *_vec_unshift(Vec *);
 
@@ -272,7 +272,7 @@ void *_vec_unshift(void **vec) {
 }
 #endif
 
-// vector_free free the given vector.
+// vec_free free the given vector.
 void vec_free(void *);
 
 #ifdef XSTD_VEC_IMPLEMENTATION
