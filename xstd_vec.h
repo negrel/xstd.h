@@ -25,6 +25,10 @@ struct xstd_vector {
 
 #ifdef __clang__
 #define typeof __typeof__
+#else
+#ifndef typeof
+#define typeof assert(0 && "typeof macro is not defined")
+#endif
 #endif
 
 // vec_foreach is a foreach macro for the vector type.
@@ -89,10 +93,10 @@ Vec vec_new(size_t cap, size_t elem_size) {
 #endif
 
 // vec_clone creates a clone of the given vector and returns it.
-Vec vec_clone(Vec);
+Vec vec_clone(const Vec);
 
 #ifdef XSTD_VEC_IMPLEMENTATION
-Vec vec_clone(Vec vec) {
+Vec vec_clone(const Vec vec) {
   assert(vec != NULL);
 
   struct xstd_vector *v = headerof_vec(vec);
@@ -109,10 +113,10 @@ Vec vec_clone(Vec vec) {
 #endif
 
 // vec_len returns the current len of the vector.
-size_t vec_len(Vec);
+size_t vec_len(const Vec);
 
 #ifdef XSTD_VEC_IMPLEMENTATION
-size_t vec_len(Vec vec) {
+size_t vec_len(const Vec vec) {
   assert(vec != NULL);
 
   return headerof_vec(vec)->len;
@@ -120,10 +124,10 @@ size_t vec_len(Vec vec) {
 #endif
 
 // vec_cap returns the current capacity of the vector.
-size_t vec_cap(Vec);
+size_t vec_cap(const Vec);
 
 #ifdef XSTD_VEC_IMPLEMENTATION
-size_t vec_cap(Vec vec) {
+size_t vec_cap(const Vec vec) {
   assert(vec != NULL);
 
   return headerof_vec(vec)->cap;
@@ -131,10 +135,10 @@ size_t vec_cap(Vec vec) {
 #endif
 
 // vec_isfull returns true if the vector is full.
-bool vec_isfull(Vec);
+bool vec_isfull(const Vec);
 
 #ifdef XSTD_VEC_IMPLEMENTATION
-bool vec_isfull(Vec vec) {
+bool vec_isfull(const Vec vec) {
   assert(vec != NULL);
 
   return vec_len(vec) == vec_cap(vec);
@@ -142,10 +146,10 @@ bool vec_isfull(Vec vec) {
 #endif
 
 // vec_isempty returns true if the vector size is 0.
-bool vec_isempty(Vec);
+bool vec_isempty(const Vec);
 
 #ifdef XSTD_VEC_IMPLEMENTATION
-bool vec_isempty(Vec vec) {
+bool vec_isempty(const Vec vec) {
   assert(vec != NULL);
 
   return vec_len(vec) == 0;
