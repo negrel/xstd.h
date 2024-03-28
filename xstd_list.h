@@ -172,17 +172,4 @@ void *_list_end(List l) {
 }
 #endif
 
-// list_append adds second list (l2) at the end of the first list (l1).
-void list_append(List l1, List l2);
-
-#ifdef XSTD_LIST_IMPLEMENTATION
-void list_append(List l1, List l2) {
-  if (l1 == NULL || l2 == NULL)
-    return;
-
-  List tail = list_end(l1);
-  headerof_list(tail)->next = headerof_list(l2);
-}
-#endif
-
 #endif
