@@ -2,5 +2,6 @@
 .envrc
 
 build/
+vgcore.*
 
 compile_flags.txt
