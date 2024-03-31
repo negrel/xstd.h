@@ -4,7 +4,9 @@
 #include <stdbool.h>
 #include <stddef.h>
 
+#define XSTD_ITER_VEC_IMPLEMENTATION
 #ifdef XSTD_VEC_IMPLEMENTATION
+
 #include <assert.h>
 #include <stdint.h>
 #include <stdlib.h>
@@ -60,12 +62,11 @@ struct xstd_vector {
 // other elements.
 #define vec_unshift(vec) ((typeof(*vec))_vec_unshift((void **)vec))
 
-#ifdef XSTD_VEC_IMPLEMENTATION
-// private macros
 #define bodyof_vec(vecptr) ((uintptr_t)(vecptr) + sizeof(struct xstd_vector))
 #define headerof_vec(vecptr)                                                   \
   ((struct xstd_vector *)((uintptr_t)vecptr - sizeof(struct xstd_vector)))
 
+#ifdef XSTD_VEC_IMPLEMENTATION
 static size_t sizeof_vector(struct xstd_vector *v) {
   return sizeof(struct xstd_vector) + v->cap * v->elem_size;
 }
@@ -274,7 +275,7 @@ void *_vec_unshift(void **vec) {
 #endif
 
 // vec_free free the given vector.
-void vec_free(void *);
+void vec_free(const Vec);
 
 #ifdef XSTD_VEC_IMPLEMENTATION
 void vec_free(Vec vec) {

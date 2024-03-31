@@ -5,6 +5,9 @@
 #define XSTD_VEC_IMPLEMENTATION
 #include "xstd_vec.h"
 
+#define XSTD_ITER_IMPLEMENTATION
+#include "xstd_iter.h"
+
 START_TEST(test_vec_new) {
   int *vec = vec_new(10, sizeof(int));
 
@@ -251,6 +254,48 @@ START_TEST(test_vec_foreach_ptr) {
 }
 END_TEST
 
+START_TEST(test_vec_iter) {
+  int *vec = vec_new(10, sizeof(int));
+  *vec_push(&vec) = 5;
+  *vec_push(&vec) = 6;
+  *vec_push(&vec) = 8;
+
+  VecIterator vec_iterator = vec_iter(vec);
+  Iterator *iter = &vec_iterator.iterator;
+  ck_assert_int_eq(5, *(int *)iter_next(iter));
+  ck_assert_int_eq(6, *(int *)iter_next(iter));
+  ck_assert_int_eq(8, *(int *)iter_next(iter));
+  ck_assert(NULL == iter_next(iter));
+  ck_assert(NULL == iter_next(iter));
+
+  size_t i = 0;
+
+  // foreach macro.
+  vec_iter_foreach(vec, it) {
+    switch (it.index) {
+    case 0:
+      ck_assert_int_eq(5, *it.value);
+      break;
+
+    case 1:
+      ck_assert_int_eq(6, *it.value);
+      break;
+
+    case 2:
+      ck_assert_int_eq(8, *it.value);
+      break;
+    }
+    ck_assert(it.index == i);
+
+    i++;
+  }
+
+  ck_assert_uint_eq(3, i);
+
+  vec_free(vec);
+}
+END_TEST
+
 static Suite *vec_suite(void) {
   Suite *s = suite_create("vector");
   TCase *tc_core = tcase_create("Core");
@@ -263,6 +308,7 @@ static Suite *vec_suite(void) {
   tcase_add_test(tc_core, test_vec_clone);
   tcase_add_test(tc_core, test_vec_foreach);
   tcase_add_test(tc_core, test_vec_foreach_ptr);
+  tcase_add_test(tc_core, test_vec_iter);
   suite_add_tcase(s, tc_core);
 
   return s;
