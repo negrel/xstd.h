@@ -1,3 +1,6 @@
+// Single file header allocator interface / vtable
+// from xstd (https://github.com/negrel/xstd.h).
+
 #ifndef XSTD_ALLOC_H
 #define XSTD_ALLOC_H
 

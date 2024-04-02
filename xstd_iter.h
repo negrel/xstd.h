@@ -1,3 +1,6 @@
+// Single file header iterator interface / vtable
+// from xstd (https://github.com/negrel/xstd.h).
+
 #ifndef XSTD_ITER_H
 #define XSTD_ITER_H
 

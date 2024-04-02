@@ -1,3 +1,6 @@
+// Single file header vector (growable array)
+// from xstd (https://github.com/negrel/xstd.h).
+
 #ifndef XSTD_VEC_H_INCLUDE
 #define XSTD_VEC_H_INCLUDE
 
