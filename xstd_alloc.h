@@ -1,12 +1,12 @@
 // Single file header allocator interface / vtable
 // from xstd (https://github.com/negrel/xstd.h).
 
-#ifndef XSTD_ALLOC_H
-#define XSTD_ALLOC_H
+#ifndef XSTD_ALLOC_H_INCLUDE
+#define XSTD_ALLOC_H_INCLUDE
 
 #include <stddef.h>
 
-#ifdef XSTD_ALLOC_IMPL
+#ifdef XSTD_ALLOC_IMPLEMENTATION
 #include <assert.h>
 #include <stdlib.h>
 #endif
@@ -23,7 +23,7 @@ typedef struct xstd_allocator {
 // memory. The memory is not initialized.
 void *alloc_malloc(Allocator *, size_t);
 
-#ifdef XSTD_ALLOC_IMPL
+#ifdef XSTD_ALLOC_IMPLEMENTATION
 void *alloc_malloc(Allocator *allocator, size_t size) {
   void *ptr = allocator->malloc(allocator, size);
   assert(ptr != NULL);
@@ -35,7 +35,7 @@ void *alloc_malloc(Allocator *allocator, size_t size) {
 // returned by a previous call to malloc() or related functions.
 void alloc_free(Allocator *allocator, void *ptr);
 
-#ifdef XSTD_ALLOC_IMPL
+#ifdef XSTD_ALLOC_IMPLEMENTATION
 void alloc_free(Allocator *allocator, void *ptr) {
   allocator->free(allocator, ptr);
 }
@@ -46,7 +46,7 @@ void alloc_free(Allocator *allocator, void *ptr) {
 // to zero.
 void *alloc_calloc(Allocator *allocator, size_t nmemb, size_t size);
 
-#ifdef XSTD_ALLOC_IMPL
+#ifdef XSTD_ALLOC_IMPLEMENTATION
 void *alloc_calloc(Allocator *allocator, size_t nmemb, size_t size) {
   void *ptr = allocator->calloc(allocator, nmemb, size);
   assert(ptr != NULL);
@@ -61,7 +61,7 @@ void *alloc_calloc(Allocator *allocator, size_t nmemb, size_t size) {
 // initialized.
 void *alloc_realloc(Allocator *allocator, void *ptr, size_t newsize);
 
-#ifdef XSTD_ALLOC_IMPL
+#ifdef XSTD_ALLOC_IMPLEMENTATION
 void *alloc_realloc(Allocator *allocator, void *ptr, size_t newsize) {
   ptr = allocator->realloc(allocator, ptr, newsize);
   assert(ptr != NULL);
@@ -73,7 +73,7 @@ void *alloc_realloc(Allocator *allocator, void *ptr, size_t newsize) {
 // function directly.
 void *libc_malloc(Allocator *, size_t size);
 
-#ifdef XSTD_ALLOC_IMPL
+#ifdef XSTD_ALLOC_IMPLEMENTATION
 void *libc_malloc(Allocator *alloc, size_t size) {
   (void)alloc;
   return malloc(size);
@@ -84,7 +84,7 @@ void *libc_malloc(Allocator *alloc, size_t size) {
 // function directly.
 void libc_free(Allocator *, void *);
 
-#ifdef XSTD_ALLOC_IMPL
+#ifdef XSTD_ALLOC_IMPLEMENTATION
 void libc_free(Allocator *alloc, void *ptr) {
   (void)alloc;
   free(ptr);
@@ -95,10 +95,11 @@ void libc_free(Allocator *alloc, void *ptr) {
 // function directly.
 void *libc_calloc(Allocator *, size_t nmemb, size_t size);
 
-#ifdef XSTD_ALLOC_IMPL
+#ifdef XSTD_ALLOC_IMPLEMENTATION
 void *libc_calloc(Allocator *alloc, size_t nmemb, size_t size) {
   (void)alloc;
-  return calloc(nmemb, size);
+  void *ptr = calloc(nmemb, size);
+  return ptr;
 }
 #endif
 
@@ -106,7 +107,7 @@ void *libc_calloc(Allocator *alloc, size_t nmemb, size_t size) {
 // function directly.
 void *libc_realloc(Allocator *, void *ptr, size_t size);
 
-#ifdef XSTD_ALLOC_IMPL
+#ifdef XSTD_ALLOC_IMPLEMENTATION
 void *libc_realloc(Allocator *alloc, void *ptr, size_t size) {
   (void)alloc;
   return realloc(ptr, size);
@@ -114,16 +115,14 @@ void *libc_realloc(Allocator *alloc, void *ptr, size_t size) {
 #endif
 
 // libc_alloc returns a libc based memory allocator.
-Allocator libc_alloc(void);
+void libc_alloc_init(Allocator *);
 
-#ifdef XSTD_ALLOC_IMPL
-Allocator libc_alloc(void) {
-  return (Allocator){
-      .malloc = &libc_malloc,
-      .free = &libc_free,
-      .calloc = &libc_calloc,
-      .realloc = &libc_realloc,
-  };
+#ifdef XSTD_ALLOC_IMPLEMENTATION
+void libc_alloc_init(Allocator *alloc) {
+  alloc->malloc = &libc_malloc;
+  alloc->free = &libc_free;
+  alloc->calloc = &libc_calloc;
+  alloc->realloc = &libc_realloc;
 }
 #endif
 

@@ -1,11 +1,10 @@
 // Single file header iterator interface / vtable
 // from xstd (https://github.com/negrel/xstd.h).
 
-#ifndef XSTD_ITER_H
-#define XSTD_ITER_H
+#ifndef XSTD_ITER_H_INCLUDE
+#define XSTD_ITER_H_INCLUDE
 
 #include <stdint.h>
-#include <stdio.h>
 #include <string.h>
 
 typedef struct xstd_iterator {

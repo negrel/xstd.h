@@ -9,7 +9,6 @@
 
 #define XSTD_ITER_VEC_IMPLEMENTATION
 #ifdef XSTD_VEC_IMPLEMENTATION
-
 #include <assert.h>
 #include <stdint.h>
 #include <stdlib.h>

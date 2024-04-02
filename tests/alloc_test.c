@@ -2,11 +2,12 @@
 
 #include <check.h>
 
-#define XSTD_ALLOC_IMPL
+#define XSTD_ALLOC_IMPLEMENTATION
 #include "xstd_alloc.h"
 
 START_TEST(test_libc_malloc) {
-  Allocator alloc = libc_alloc();
+  Allocator alloc = {0};
+  libc_alloc_init(&alloc);
 
   size_t *ptr = alloc_malloc(&alloc, sizeof(size_t));
   ck_assert(ptr != NULL);
@@ -16,7 +17,8 @@ START_TEST(test_libc_malloc) {
 END_TEST
 
 START_TEST(test_libc_calloc) {
-  Allocator alloc = libc_alloc();
+  Allocator alloc = {0};
+  libc_alloc_init(&alloc);
 
   size_t *ptr = alloc_calloc(&alloc, 1, sizeof(size_t));
   ck_assert(ptr != NULL);
@@ -27,7 +29,8 @@ START_TEST(test_libc_calloc) {
 END_TEST
 
 START_TEST(test_libc_realloc) {
-  Allocator alloc = libc_alloc();
+  Allocator alloc = {0};
+  libc_alloc_init(&alloc);
 
   size_t *ptr = alloc_malloc(&alloc, sizeof(size_t));
   ck_assert(ptr != NULL);
@@ -40,7 +43,8 @@ START_TEST(test_libc_realloc) {
 END_TEST
 
 START_TEST(test_libc_free) {
-  Allocator alloc = libc_alloc();
+  Allocator alloc = {0};
+  libc_alloc_init(&alloc);
 
   size_t *ptr = alloc_malloc(&alloc, sizeof(size_t));
   ck_assert(ptr != NULL);

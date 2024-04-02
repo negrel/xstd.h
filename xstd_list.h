@@ -6,7 +6,6 @@
 
 #include <stdbool.h>
 #include <stddef.h>
-#include <stdio.h>
 #include <string.h>
 
 #ifdef XSTD_LIST_IMPLEMENTATION
