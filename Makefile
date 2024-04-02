@@ -10,7 +10,7 @@ $(BUILD_DIR)/$(TEST_DIR)/%: $(TEST_DIR)/%.c
 	valgrind --quiet --leak-check=full $@
 
 .PHONY: tests
-tests: $(BUILD_DIR)/$(TEST_DIR)/vec_test $(BUILD_DIR)/$(TEST_DIR)/iter_test $(BUILD_DIR)/$(TEST_DIR)/list_test
+tests: $(BUILD_DIR)/$(TEST_DIR)/vec_test $(BUILD_DIR)/$(TEST_DIR)/iter_test $(BUILD_DIR)/$(TEST_DIR)/list_test $(BUILD_DIR)/$(TEST_DIR)/alloc_test
 
 clean:
 	rm -rf $(BUILD_DIR)
