@@ -16,17 +16,14 @@
 #define XSTD_ALLOC_IMPLEMENTATION
 #endif
 
-#ifdef XSTD_VEC_ALLOCATOR
 #include "xstd_alloc.h"
-#endif
+#include "xstd_internal.h"
 
 typedef void *Vec;
 
 struct xstd_vector {
   // Header
-#ifdef XSTD_VEC_ALLOCATOR
   Allocator *allocator;
-#endif
   size_t cap;
   size_t len;
   size_t elem_size;
@@ -34,14 +31,6 @@ struct xstd_vector {
   // Body
   // ...
 };
-
-#ifdef __clang__
-#define typeof __typeof__
-#else
-#ifndef typeof
-#define typeof assert(0 && "typeof macro is not defined")
-#endif
-#endif
 
 // vec_foreach is a foreach macro for the vector type.
 // The first parameter is the vector on which to iterate. The
@@ -85,33 +74,18 @@ static size_t sizeof_vector(struct xstd_vector *v) {
 // vec_new returns a new zeroed vector with the given capacity to store
 // element of the given size. It the returns a pointer to the first element of
 // the vector.
-#ifdef XSTD_VEC_ALLOCATOR
 Vec vec_new(Allocator *allocator, size_t cap, size_t elem_size);
-#else
-Vec vec_new(size_t cap, size_t elem_size);
-#endif
 
 #ifdef XSTD_VEC_IMPLEMENTATION
-#ifdef XSTD_VEC_ALLOCATOR
 Vec vec_new(Allocator *allocator, size_t cap, size_t elem_size) {
-#else
-Vec vec_new(size_t cap, size_t elem_size) {
-#endif
   size_t header = sizeof(struct xstd_vector);
   size_t body = cap * elem_size;
 
-#ifdef XSTD_VEC_ALLOCATOR
   struct xstd_vector *vec = alloc_calloc(allocator, header + body, 1);
-#else
-  struct xstd_vector *vec = calloc(header + body, 1);
-#endif
   if (vec == NULL)
     return NULL;
 
-#ifdef XSTD_VEC_ALLOCATOR
   vec->allocator = allocator;
-#endif
-
   vec->len = 0;
   vec->cap = cap;
   vec->elem_size = elem_size;
@@ -130,11 +104,7 @@ Vec vec_clone(const Vec vec) {
   struct xstd_vector *v = headerof_vec(vec);
   size_t size_v = sizeof_vector(v);
 
-#ifdef XSTD_VEC_ALLOCATOR
   void *clone = alloc_malloc(v->allocator, size_v);
-#else
-  void *clone = malloc(size_v);
-#endif
   if (clone == NULL)
     return NULL;
 
@@ -203,19 +173,11 @@ void *_vec_push(void **vec) {
     // Let's double the capacity of our vector
     struct xstd_vector *old = headerof_vec(*vec);
 
-#ifdef XSTD_VEC_ALLOCATOR
     void *new = vec_new(old->allocator, old->cap * 2, old->elem_size);
-#else
-    void *new = vec_new(old->cap * 2, old->elem_size);
-#endif
     headerof_vec(new)->len = old->len;
 
     memcpy(new, (void *)bodyof_vec(old), old->cap * old->elem_size);
-#ifdef XSTD_VEC_ALLOCATOR
     alloc_free(old->allocator, old);
-#else
-    free(old);
-#endif
 
     *vec = new;
   }
@@ -289,21 +251,13 @@ void *_vec_unshift(void **vec) {
     // Let's double the capacity of our vector
     struct xstd_vector *old = headerof_vec(*vec);
 
-#ifdef XSTD_VEC_ALLOCATOR
     Vec new = vec_new(old->allocator, old->cap * 2, old->elem_size);
-#else
-    Vec new = vec_new(old->cap * 2, old->elem_size);
-#endif
     headerof_vec(new)->len = old->len + 1;
 
     // Copy old elements in new at index 1
     memcpy((void *)((uintptr_t) new + old->elem_size), (void *)bodyof_vec(old),
            old->cap * old->elem_size);
-#ifdef XSTD_VEC_ALLOCATOR
     alloc_free(old->allocator, old);
-#else
-    free(old);
-#endif
 
     *vec = new;
 

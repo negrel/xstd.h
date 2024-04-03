@@ -2,6 +2,15 @@
 
 Extension of C standard library in pure C11 in a form of single-file header.
 
+## Get started
+
+To add `xstd` to your project, just copy and paste `xstd.h` which is a vendored
+bundle of all `xstd_xxx.h` files.
+
+### Getting latest bundle
+
+You can get latest/unstable bundle by running `make bundle`
+
 ### Running the tests
 
 ```shell

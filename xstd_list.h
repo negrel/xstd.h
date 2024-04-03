@@ -8,6 +8,8 @@
 #include <stddef.h>
 #include <string.h>
 
+#include "xstd_internal.h"
+
 #ifdef XSTD_LIST_IMPLEMENTATION
 #include <assert.h>
 #include <stdint.h>
@@ -23,14 +25,6 @@ struct xstd_list {
   // Body
   // ...
 };
-
-#ifdef __clang__
-#define typeof __typeof__
-#else
-#ifndef typeof
-#define typeof assert(0 && "typeof macro is not defined")
-#endif
-#endif
 
 #ifdef XSTD_LIST_IMPLEMENTATION
 // private macros

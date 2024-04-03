@@ -1,10 +1,9 @@
 #ifndef XSTD_ARENA_H_INCLUDE
 #define XSTD_ARENA_H_INCLUDE
 
-#include <stdint.h>
-#define XSTD_ARENA_IMPLEMENTATION
 #ifdef XSTD_ARENA_IMPLEMENTATION
-
+#include <assert.h>
+#include <stdint.h>
 #define XSTD_ALLOC_IMPLEMENTATION
 #endif
 
