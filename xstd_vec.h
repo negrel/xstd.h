@@ -7,7 +7,7 @@
 #include <stdbool.h>
 #include <stddef.h>
 
-#define XSTD_ITER_VEC_IMPLEMENTATION
+#define XSTD_VEC_IMPLEMENTATION
 #ifdef XSTD_VEC_IMPLEMENTATION
 #include <assert.h>
 #include <stdint.h>
@@ -18,6 +18,7 @@
 
 #include "xstd_alloc.h"
 #include "xstd_internal.h"
+#include "xstd_iter.h"
 
 typedef void *Vec;
 
@@ -55,11 +56,11 @@ struct xstd_vector {
 // vec_push returns a pointer to an element at the end of the vector.
 // This function takes a double pointer to a vector to reallocate in case it's
 // full.
-#define vec_push(vec) ((typeof(*vec))_vec_push((Vec *)vec))
+#define vec_push(vec) ((typeof(*vec))vec_push_((Vec *)vec))
 
 // vec_unshift adds an element at the beginning of the vector and shift
 // other elements.
-#define vec_unshift(vec) ((typeof(*vec))_vec_unshift((void **)vec))
+#define vec_unshift(vec) ((typeof(*vec))vec_unshift_((void **)vec))
 
 #define bodyof_vec(vecptr) ((uintptr_t)(vecptr) + sizeof(struct xstd_vector))
 #define headerof_vec(vecptr)                                                   \
@@ -162,10 +163,10 @@ bool vec_isempty(const Vec vec) {
 // This function takes a pointer to a vector to reallocate it if it's full.
 // An handy vec_push macro exists so you don't have to cast arguments and
 // return type.
-void *_vec_push(Vec *);
+void *vec_push_(Vec *);
 
 #ifdef XSTD_VEC_IMPLEMENTATION
-void *_vec_push(void **vec) {
+void *vec_push_(void **vec) {
   assert(vec != NULL);
   assert(*vec != NULL);
 
@@ -239,11 +240,11 @@ void vec_shift(Vec vec, void *shifted) {
 // other elements.
 // An handy vec_unshift macro exists so you don't have to cast arguments and
 // return type.
-void *_vec_unshift(Vec *);
+void *vec_unshift_(Vec *);
 
 #ifdef XSTD_VEC_IMPLEMENTATION
 
-void *_vec_unshift(void **vec) {
+void *vec_unshift_(void **vec) {
   assert(vec != NULL);
   assert(*vec != NULL);
 
@@ -283,6 +284,57 @@ void vec_free(Vec vec) {
 
   struct xstd_vector *v = headerof_vec(vec);
   free(v);
+}
+#endif
+
+#define vec_iter_foreach(vec, iterator)                                        \
+  for (struct {                                                                \
+         short i;                                                              \
+         VecIterator iter;                                                     \
+       } tmp = {.i = 0, .iter = vec_iter(vec)};                                \
+       tmp.i == 0; tmp.i = 1)                                                  \
+  iter_foreach((Iterator *)&tmp.iter, typeof(vec), iterator)
+
+// VecIterator is a wrapper around Vec that implements the Iterator interface.
+// VecIterator pointer can safely be casted to Iterator *.
+typedef struct {
+  Iterator iterator;
+  size_t cursor;
+  Vec vec;
+} VecIterator;
+
+// vec_iter_next implements Iterator interface for VecIterator.
+void *vec_iter_next(Iterator *it);
+
+#ifdef XSTD_VEC_IMPLEMENTATION
+void *vec_iter_next(Iterator *it) {
+  if (it == NULL)
+    return NULL;
+
+  VecIterator *iter = (VecIterator *)it;
+  void *result = NULL;
+
+  struct xstd_vector *vec = headerof_vec(iter->vec);
+  if (iter->cursor < vec->len) {
+    result = (void *)((uintptr_t)(iter->vec) + iter->cursor * vec->elem_size);
+    iter->cursor++;
+  }
+
+  return result;
+}
+#endif
+
+// vec_iter creates a VecIterator that wraps the given vector.
+VecIterator vec_iter(const Vec vec);
+
+#ifdef XSTD_VEC_IMPLEMENTATION
+VecIterator vec_iter(const Vec vec) {
+  VecIterator iterator = {0};
+  iterator.iterator.next = &vec_iter_next;
+  iterator.cursor = 0;
+  iterator.vec = vec;
+
+  return iterator;
 }
 #endif
 
