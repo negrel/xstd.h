@@ -1,3 +1,4 @@
+#include <stdio.h>
 #include <stdlib.h>
 
 #include <check.h>
@@ -5,116 +6,130 @@
 #define XSTD_LIST_IMPLEMENTATION
 #include "xstd_list.h"
 
-START_TEST(test_list_push) {
-  int *list = NULL;
-  list_push(&list); // Zeroed by default
-  ck_assert_int_eq(*list, 0);
+typedef_list(int, IntList);
 
-  *list_push(&list) = 2;
-  ck_assert_int_eq(*list, 2);
+typedef_list_iterator(IntList, IntListIterator);
 
-  *list_push(&list) = 3;
-  ck_assert_int_eq(*list, 3);
-  ck_assert_int_eq(*list_next(list), 2);
-  ck_assert_int_eq(*list_next(list_next(list)), 0);
+fndef_list_iterator_init(IntListIterator, IntList, int_list_iter)
 
-  list_free(list);
+    START_TEST(test_list_prepend) {
+  // List head.
+  IntList *head = NULL;
+
+  IntList *l1 = calloc(1, sizeof(IntList));
+  l1->value = 1;
+  ck_assert(list_next(l1) == NULL);
+
+  // Prepend l1 to head.
+  list_prepend(&head, l1);
+  ck_assert(head == l1);
+  ck_assert(list_next(l1) == NULL);
+
+  IntList *l2 = calloc(1, sizeof(IntList));
+  ck_assert(list_next(l2) == NULL);
+
+  // Prepend l2 to head.
+  list_prepend(&head, l2);
+
+  ck_assert(head == l2);
+  ck_assert(list_next(l2) == l1);
+  ck_assert(list_next(l1) == NULL);
+
+  free(l1);
+  free(l2);
+}
+END_TEST
+
+START_TEST(test_list_remove) {
+  // List head.
+  IntList *head = NULL;
+
+  IntList *l0 = calloc(1, sizeof(IntList));
+  l0->value = 0;
+  list_prepend(&head, l0);
+
+  IntList *l1 = calloc(1, sizeof(IntList));
+  l1->value = 1;
+  list_prepend(&head, l1);
+
+  IntList *l2 = calloc(1, sizeof(IntList));
+  list_prepend(&head, l2);
+
+  // Should have no effect.
+  list_remove(head, (IntList *)NULL);
+  ck_assert(head == l2);
+  ck_assert(list_next(l2) == l1);
+  ck_assert(list_next(l1) == l0);
+
+  // Replace l2 -> l1 pointer with l2 -> l0.
+  list_remove(head, l1);
+  ck_assert(head == l2);
+  ck_assert(list_next(l2) == l0);
+  ck_assert(list_next(l1) == l0);
+
+  free(l0);
+  free(l1);
+  free(l2);
 }
 END_TEST
 
 START_TEST(test_list_remove_next) {
-  int *list = NULL;
+  // List head.
+  IntList *head = NULL;
 
-  int *one = list_push(&list);
-  *one = 1;
-  ck_assert(list == one);
+  IntList *l1 = calloc(1, sizeof(IntList));
+  l1->value = 1;
+  list_prepend(&head, l1);
 
-  int *two = list_push(&list);
-  *two = 2;
-  ck_assert(list == two);
+  IntList *l2 = calloc(1, sizeof(IntList));
+  list_prepend(&head, l2);
 
-  int *three = list_push(&list);
-  *three = 3;
-  ck_assert(list == three);
+  // Should have no effect.
+  list_remove_next(l1);
+  ck_assert(head == l2);
+  ck_assert(list_next(l2) == l1);
+  ck_assert(list_next(l1) == NULL);
 
-  ck_assert(list_next(three) == two);
-  ck_assert(list_next(two) == one);
+  // Remove l2 -> l1 pointer.
+  list_remove_next(l2);
+  ck_assert(head == l2);
+  ck_assert(list_next(l2) == NULL);
+  ck_assert(list_next(l1) == NULL);
 
-  // No next (no op).
-  list_remove_next(one);
-
-  ck_assert(list_next(three) == two);
-  ck_assert(list_next(two) == one);
-  ck_assert(list_next(one) == NULL);
-
-  // next of two is end of list.
-  list_remove_next(two);
-
-  ck_assert(list_next(three) == two);
-  ck_assert(list_next(two) == NULL);
-
-  // second element of list.
-  list_remove_next(three);
-  ck_assert(list_next(three) == NULL);
-
-  // First element it self.
-  list_remove_head(&three);
-
-  ck_assert(three == NULL);
+  free(l1);
+  free(l2);
 }
 END_TEST
 
-START_TEST(test_list_remove_head) {
-  int *list = NULL;
-  list_push(&list);
-  *list_push(&list) = 2;
-  *list_push(&list) = 3;
+START_TEST(test_list_iterator) {
+  // List head.
+  IntList *head = NULL;
 
-  list_remove_head(&list);
+  IntList *l1 = calloc(1, sizeof(IntList));
+  l1->value = 1;
+  list_prepend(&head, l1);
 
-  ck_assert_int_eq(*list, 2);
-  ck_assert_int_eq(*list_next(list), 0);
+  IntList *l2 = calloc(1, sizeof(IntList));
+  l2->value = 2;
+  list_prepend(&head, l2);
 
-  list_free(list);
-}
-END_TEST
+  IntListIterator iter = int_list_iter(head);
+  size_t i = 0;
+  iter_foreach((Iterator *)&iter, IntList *, it) {
+    i++;
+    switch (it.index) {
+    case 0:
+      ck_assert_int_eq(it.value->value, 2);
+      break;
+    case 1:
+      ck_assert_int_eq(it.value->value, 1);
+      break;
+    }
+  }
+  ck_assert_int_eq(i, 2);
 
-START_TEST(test_list_free) {
-  int *list = NULL;
-  list_push(&list);
-  *list_push(&list) = 2;
-  *list_push(&list) = 3;
-
-  list_free(list);
-}
-END_TEST
-
-START_TEST(test_list_free_next) {
-  int *list = NULL;
-  list_push(&list);
-  *list_push(&list) = 2;
-  *list_push(&list) = 3;
-
-  list_free_next(list);
-  list_remove_head(&list);
-}
-END_TEST
-
-START_TEST(test_list_end) {
-  int *list = NULL;
-  ck_assert(list_end(list) == NULL);
-
-  int *tail = list_push(&list);
-  ck_assert(*list_end(list) == 0);
-  ck_assert(list_end(list) == tail);
-
-  *list_push(&list) = 2;
-  ck_assert(list_end(list) == tail);
-
-  *list_push(&list) = 3;
-  ck_assert(list_end(list) == tail);
-
-  list_free(list);
+  free(l1);
+  free(l2);
 }
 END_TEST
 
@@ -122,12 +137,10 @@ static Suite *list_suite(void) {
   Suite *s = suite_create("list");
   TCase *tc_core = tcase_create("Core");
 
-  tcase_add_test(tc_core, test_list_push);
+  tcase_add_test(tc_core, test_list_prepend);
+  tcase_add_test(tc_core, test_list_remove);
   tcase_add_test(tc_core, test_list_remove_next);
-  tcase_add_test(tc_core, test_list_remove_head);
-  tcase_add_test(tc_core, test_list_free);
-  tcase_add_test(tc_core, test_list_free_next);
-  tcase_add_test(tc_core, test_list_end);
+  tcase_add_test(tc_core, test_list_iterator);
 
   suite_add_tcase(s, tc_core);
 

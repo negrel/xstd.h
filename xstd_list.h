@@ -1,171 +1,122 @@
-// Single file header iterator interface / vtable
-// from xstd (https://github.com/negrel/xstd.h).
-
 #ifndef XSTD_LIST_H_INCLUDE
 #define XSTD_LIST_H_INCLUDE
 
-#include <stdbool.h>
+#ifdef XSTD_LIST_IMPLEMENTATION
+#define XSTD_ITER_IMPLEMENTATION
+
 #include <stddef.h>
-#include <string.h>
+#include <stdint.h>
+#endif
 
 #include "xstd_internal.h"
+#include "xstd_iter.h"
+
+// typedef a List structure with the given name and of the given type.
+#define typedef_list(type, name)                                               \
+  typedef struct _xstd_##name {                                                \
+    struct name *next_;                                                        \
+    type value;                                                                \
+  } name
+
+#define list_prepend(list, element)                                            \
+  do {                                                                         \
+    type_assert_eq(*(list), element);                                          \
+    list_prepend_((void **)list, (void *)element);                             \
+  } while (0)
+
+// list_prepend_ adds element to beginning of list, replacing its current head.
+// An handy list_prepend macro exists so you don't have to cast arguments.
+void list_prepend_(void **list, void *element);
 
 #ifdef XSTD_LIST_IMPLEMENTATION
-#include <assert.h>
-#include <stdint.h>
-#include <stdlib.h>
-#endif
-
-typedef void *List;
-
-struct xstd_list {
-  // Header
-  struct xstd_list *next;
-
-  // Body
-  // ...
-};
-
-#ifdef XSTD_LIST_IMPLEMENTATION
-// private macros
-#define bodyof_list(listptr) ((uintptr_t)(listptr) + sizeof(struct xstd_list))
-#define headerof_list(listptr)                                                 \
-  ((struct xstd_list *)((uintptr_t)listptr - sizeof(struct xstd_list)))
-#endif
-
-#define list_foreach(list, iterator)                                           \
-  for (                                                                        \
-      struct {                                                                 \
-        size_t index;                                                          \
-        typeof(*list) value;                                                   \
-        typeof(list) item;                                                     \
-      } iterator = {.value = *list, .item = list};                             \
-      iterator.item != NULL; iterator.item = list_next(iterator.item),         \
-        iterator.value = iterator.item != NULL ? *iterator.item                \
-                                               : (typeof(*list)){0})
-
-#define list_foreach_ptr(list, iterator)                                       \
-  for (struct {                                                                \
-         size_t index;                                                         \
-         typeof(list) value;                                                   \
-       } iterator = {.value = list};                                           \
-       iterator.value != NULL; iterator.value = list_next(iterator.value))
-
-#define list_push(list)                                                        \
-  ((typeof(*list))_list_push((void **)list, sizeof(typeof(*list))))
-
-void *_list_push(List *, size_t);
-
-#ifdef XSTD_LIST_IMPLEMENTATION
-void *_list_push(void **list, size_t item_size) {
-  assert(list != NULL);
-
-  void *head =
-      (void *)bodyof_list(calloc(1, sizeof(struct xstd_list) + item_size));
-
-  headerof_list(head)->next = headerof_list(*list);
-
-  *list = head;
-
-  return head;
+void list_prepend_(void **list, void *element) {
+  void **element_next = (void **)element;
+  *element_next = *list;
+  *list = element;
 }
 #endif
 
-#define list_next(list) (typeof(list))_list_next(list)
+#define list_next(list) ((typeof(list))list_next_(list))
 
-void *_list_next(const List);
+void *list_next_(void *list);
 
 #ifdef XSTD_LIST_IMPLEMENTATION
-void *_list_next(const List l) {
-  if (l == NULL)
+void *list_next_(void *list) {
+  if (list == NULL)
     return NULL;
-
-  return (void *)bodyof_list(headerof_list(l)->next);
+  return *((void **)list);
 }
 #endif
 
-#define list_remove_head(list) _list_remove_head((void **)list)
+#define list_remove(list, element)                                             \
+  do {                                                                         \
+    type_assert_eq(list, element);                                             \
+    list_remove_((void *)list, (void *)element);                               \
+  } while (0)
 
-// list_remove_head removes head element from the list. You must not call this
-// fuction with an element in a middle of a list otherwise you will encounter a
-// use after free error (segfault).
-void _list_remove_head(List *);
-
-#ifdef XSTD_LIST_IMPLEMENTATION
-void _list_remove_head(void **l) {
-  if (*l == NULL)
-    return;
-
-  void *tmp = headerof_list(*l);
-  *l = list_next(*l);
-  free(tmp);
-}
-#endif
-
-// list_remove_next removes next element from the given list.
-void list_remove_next(List);
+// list_remove_ removes element from list but leave element untouched.
+// An handy list_remove macro exists so you don't have to cast arguments.
+void list_remove_(void *list, void *element);
 
 #ifdef XSTD_LIST_IMPLEMENTATION
-void list_remove_next(List l) {
-  if (l == NULL)
+void list_remove_(void *list, void *element) {
+  if (element == NULL)
     return;
 
-  List next = list_next(l);
-  if (next != NULL) {
-    struct xstd_list *list = headerof_list(l);
-    list->next = headerof_list(next)->next;
-    free(headerof_list(next));
+  void **list_next = (void **)list;
+
+  while (*list_next != NULL && *list_next != element) {
+    list_next = (void **)*list_next;
   }
+
+  *list_next = list_next_(element);
 }
 #endif
 
-// list_free frees all elements contained in the list. You must not call this
-// fuction with an element in a middle of a list otherwise you will encounter a
-// use after free error (segfault).
-void list_free(List);
+#define list_remove_next(list) (typeof(list))list_remove_next_(list)
+
+// list_remove_next_ removes next element of the given list without altering the
+// next element.
+void *list_remove_next_(void *list);
 
 #ifdef XSTD_LIST_IMPLEMENTATION
-void list_free(List l) {
-  if (l == NULL)
-    return;
+void *list_remove_next_(void *list) {
+  void **list_next = (void **)list;
+  void *next = *list_next;
+  *list_next = list_next_(next);
 
-  while (l != NULL) {
-    List tmp = l;
-    l = list_next(l);
-    free(headerof_list(tmp));
+  return next;
+}
+#endif
+
+void *list_iter_next(Iterator *iterator);
+
+#ifdef XSTD_LIST_IMPLEMENTATION
+void *list_iter_next(Iterator *iterator) {
+  // 2nd field of list iterator (the list itself).
+  void **iterator_list_field_ptr =
+      (void **)((uintptr_t)iterator + sizeof(Iterator));
+
+  void *next = *iterator_list_field_ptr;
+  *iterator_list_field_ptr = list_next_(*iterator_list_field_ptr);
+
+  return next;
+}
+#endif
+
+#define typedef_list_iterator(list_type, type_name)                            \
+  typedef struct {                                                             \
+    Iterator iterator;                                                         \
+    list_type *list;                                                           \
+  } type_name
+
+#define fndef_list_iterator_init(list_iter_type, list_type, fn_name)           \
+  list_iter_type fn_name(list_type *list);                                     \
+  list_iter_type fn_name(list_type *list) {                                    \
+    list_iter_type iter = {0};                                                 \
+    iter.iterator.next = &list_iter_next;                                      \
+    iter.list = list;                                                          \
+    return iter;                                                               \
   }
-}
-#endif
-
-// list_free_next frees all elements following the given list.
-void list_free_next(List);
-
-#ifdef XSTD_LIST_IMPLEMENTATION
-void list_free_next(List l) {
-  if (l == NULL)
-    return;
-
-  List next = list_next(l);
-  if (next != NULL)
-    list_free(next);
-
-  headerof_list(l)->next = headerof_list(NULL);
-}
-#endif
-
-#define list_end(list) ((typeof(list))_list_end(list))
-
-// _list_end returns a pointer to last element of list.
-void *_list_end(List l1);
-
-#ifdef XSTD_LIST_IMPLEMENTATION
-void *_list_end(List l) {
-  void *result = NULL;
-
-  list_foreach_ptr(l, iter) { result = iter.value; }
-
-  return result;
-}
-#endif
 
 #endif
