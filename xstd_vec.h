@@ -7,7 +7,6 @@
 #include <stdbool.h>
 #include <stddef.h>
 
-#define XSTD_VEC_IMPLEMENTATION
 #ifdef XSTD_VEC_IMPLEMENTATION
 #include <assert.h>
 #include <stdint.h>
@@ -24,10 +23,10 @@ typedef void *Vec;
 
 struct xstd_vector {
   // Header
-  Allocator *allocator;
-  size_t cap;
-  size_t len;
-  size_t elem_size;
+  Allocator *allocator_;
+  size_t cap_;
+  size_t len_;
+  size_t elem_size_;
 
   // Body
   // ...
@@ -68,7 +67,7 @@ struct xstd_vector {
 
 #ifdef XSTD_VEC_IMPLEMENTATION
 static size_t sizeof_vector(struct xstd_vector *v) {
-  return sizeof(struct xstd_vector) + v->cap * v->elem_size;
+  return sizeof(struct xstd_vector) + v->cap_ * v->elem_size_;
 }
 #endif
 
@@ -86,10 +85,10 @@ Vec vec_new(Allocator *allocator, size_t cap, size_t elem_size) {
   if (vec == NULL)
     return NULL;
 
-  vec->allocator = allocator;
-  vec->len = 0;
-  vec->cap = cap;
-  vec->elem_size = elem_size;
+  vec->allocator_ = allocator;
+  vec->len_ = 0;
+  vec->cap_ = cap;
+  vec->elem_size_ = elem_size;
 
   return (void *)bodyof_vec(vec);
 }
@@ -105,7 +104,7 @@ Vec vec_clone(const Vec vec) {
   struct xstd_vector *v = headerof_vec(vec);
   size_t size_v = sizeof_vector(v);
 
-  void *clone = alloc_malloc(v->allocator, size_v);
+  void *clone = alloc_malloc(v->allocator_, size_v);
   if (clone == NULL)
     return NULL;
 
@@ -122,7 +121,7 @@ size_t vec_len(const Vec);
 size_t vec_len(const Vec vec) {
   assert(vec != NULL);
 
-  return headerof_vec(vec)->len;
+  return headerof_vec(vec)->len_;
 }
 #endif
 
@@ -133,7 +132,7 @@ size_t vec_cap(const Vec);
 size_t vec_cap(const Vec vec) {
   assert(vec != NULL);
 
-  return headerof_vec(vec)->cap;
+  return headerof_vec(vec)->cap_;
 }
 #endif
 
@@ -174,19 +173,19 @@ void *vec_push_(void **vec) {
     // Let's double the capacity of our vector
     struct xstd_vector *old = headerof_vec(*vec);
 
-    void *new = vec_new(old->allocator, old->cap * 2, old->elem_size);
-    headerof_vec(new)->len = old->len;
+    void *new = vec_new(old->allocator_, old->cap_ * 2, old->elem_size_);
+    headerof_vec(new)->len_ = old->len_;
 
-    memcpy(new, (void *)bodyof_vec(old), old->cap * old->elem_size);
-    alloc_free(old->allocator, old);
+    memcpy(new, (void *)bodyof_vec(old), old->cap_ * old->elem_size_);
+    alloc_free(old->allocator_, old);
 
     *vec = new;
   }
 
   struct xstd_vector *v = headerof_vec(*vec);
-  size_t offset = v->elem_size * v->len;
+  size_t offset = v->elem_size_ * v->len_;
 
-  v->len++;
+  v->len_++;
 
   return (void *)(bodyof_vec(v) + offset);
 }
@@ -205,11 +204,11 @@ void vec_pop(Vec vec, void *popped) {
     return;
 
   struct xstd_vector *v = headerof_vec(vec);
-  v->len--;
+  v->len_--;
 
   if (popped != NULL)
-    memcpy(popped, (void *)((uintptr_t)vec + v->len * v->elem_size),
-           v->elem_size);
+    memcpy(popped, (void *)((uintptr_t)vec + v->len_ * v->elem_size_),
+           v->elem_size_);
 }
 #endif
 
@@ -226,13 +225,13 @@ void vec_shift(Vec vec, void *shifted) {
 
   struct xstd_vector *v = headerof_vec(vec);
   if (shifted != NULL)
-    memcpy(shifted, vec, v->elem_size);
+    memcpy(shifted, vec, v->elem_size_);
 
-  v->len--;
+  v->len_--;
 
   memmove((void *)bodyof_vec(v),
-          (void *)((uintptr_t)bodyof_vec(v) + v->elem_size),
-          v->len * v->elem_size);
+          (void *)((uintptr_t)bodyof_vec(v) + v->elem_size_),
+          v->len_ * v->elem_size_);
 }
 #endif
 
@@ -252,13 +251,13 @@ void *vec_unshift_(void **vec) {
     // Let's double the capacity of our vector
     struct xstd_vector *old = headerof_vec(*vec);
 
-    Vec new = vec_new(old->allocator, old->cap * 2, old->elem_size);
-    headerof_vec(new)->len = old->len + 1;
+    Vec new = vec_new(old->allocator_, old->cap_ * 2, old->elem_size_);
+    headerof_vec(new)->len_ = old->len_ + 1;
 
     // Copy old elements in new at index 1
-    memcpy((void *)((uintptr_t) new + old->elem_size), (void *)bodyof_vec(old),
-           old->cap * old->elem_size);
-    alloc_free(old->allocator, old);
+    memcpy((void *)((uintptr_t) new + old->elem_size_), (void *)bodyof_vec(old),
+           old->cap_ * old->elem_size_);
+    alloc_free(old->allocator_, old);
 
     *vec = new;
 
@@ -267,9 +266,9 @@ void *vec_unshift_(void **vec) {
 
   struct xstd_vector *v = headerof_vec(*vec);
   // Move all elements by 1
-  memmove((void *)((uintptr_t)*vec + v->elem_size), *vec,
-          v->len * v->elem_size);
-  v->len++;
+  memmove((void *)((uintptr_t)*vec + v->elem_size_), *vec,
+          v->len_ * v->elem_size_);
+  v->len_++;
 
   return *vec;
 }
@@ -298,9 +297,9 @@ void vec_free(Vec vec) {
 // VecIterator is a wrapper around Vec that implements the Iterator interface.
 // VecIterator pointer can safely be casted to Iterator *.
 typedef struct {
-  Iterator iterator;
-  size_t cursor;
-  Vec vec;
+  Iterator iterator_;
+  size_t cursor_;
+  Vec vec_;
 } VecIterator;
 
 // vec_iter_next implements Iterator interface for VecIterator.
@@ -314,10 +313,11 @@ void *vec_iter_next(Iterator *it) {
   VecIterator *iter = (VecIterator *)it;
   void *result = NULL;
 
-  struct xstd_vector *vec = headerof_vec(iter->vec);
-  if (iter->cursor < vec->len) {
-    result = (void *)((uintptr_t)(iter->vec) + iter->cursor * vec->elem_size);
-    iter->cursor++;
+  struct xstd_vector *vec = headerof_vec(iter->vec_);
+  if (iter->cursor_ < vec->len_) {
+    result =
+        (void *)((uintptr_t)(iter->vec_) + iter->cursor_ * vec->elem_size_);
+    iter->cursor_++;
   }
 
   return result;
@@ -330,9 +330,9 @@ VecIterator vec_iter(const Vec vec);
 #ifdef XSTD_VEC_IMPLEMENTATION
 VecIterator vec_iter(const Vec vec) {
   VecIterator iterator = {0};
-  iterator.iterator.next = &vec_iter_next;
-  iterator.cursor = 0;
-  iterator.vec = vec;
+  iterator.iterator_.next = &vec_iter_next;
+  iterator.cursor_ = 0;
+  iterator.vec_ = vec;
 
   return iterator;
 }

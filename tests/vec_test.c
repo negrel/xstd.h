@@ -5,12 +5,11 @@
 #define XSTD_ALLOC_IMPLEMENTATION
 #include "xstd_alloc.h"
 
-#define XSTD_VEC_IMPLEMENTATION
-#define XSTD_VEC_ALLOCATOR
-#include "xstd_vec.h"
-
 #define XSTD_ITER_IMPLEMENTATION
 #include "xstd_iter.h"
+
+#define XSTD_VEC_IMPLEMENTATION
+#include "xstd_vec.h"
 
 START_TEST(test_vec_new) {
   Allocator alloc = {0};
@@ -292,7 +291,7 @@ START_TEST(test_vec_iter) {
   *vec_push(&vec) = 8;
 
   VecIterator vec_iterator = vec_iter(vec);
-  Iterator *iter = &vec_iterator.iterator;
+  Iterator *iter = (Iterator *)&vec_iterator;
   ck_assert_int_eq(5, *(int *)iter_next(iter));
   ck_assert_int_eq(6, *(int *)iter_next(iter));
   ck_assert_int_eq(8, *(int *)iter_next(iter));

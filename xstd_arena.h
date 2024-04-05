@@ -11,11 +11,11 @@
 
 // ArenaAllocator is an arena allocator.
 typedef struct xstd_arena_allocator {
-  Allocator allocator;
-  Allocator *parent_allocator;
-  size_t arena_size;
-  struct xstd_arena *arena_list;
-  size_t cursor;
+  Allocator allocator_;
+  Allocator *parent_allocator_;
+  size_t arena_size_;
+  struct xstd_arena *arena_list_;
+  size_t cursor_;
 } ArenaAllocator;
 
 struct xstd_arena {
@@ -39,15 +39,15 @@ void *arena_calloc(Allocator *a, size_t nmemb, size_t size) {
     return NULL;
   }
 
-  if (alloc_size > alloc->arena_size) {
+  if (alloc_size > alloc->arena_size_) {
     struct xstd_arena *new_arena = alloc_calloc(
-        alloc->parent_allocator, 1, alloc_size + sizeof(struct xstd_arena));
+        alloc->parent_allocator_, 1, alloc_size + sizeof(struct xstd_arena));
     if (new_arena == NULL)
       return NULL;
 
-    new_arena->next = alloc->arena_list;
-    alloc->arena_list = new_arena;
-    alloc->cursor = alloc->arena_size; // Allocated arena as full.
+    new_arena->next = alloc->arena_list_;
+    alloc->arena_list_ = new_arena;
+    alloc->cursor_ = alloc->arena_size_; // Allocated arena as full.
     return (void *)((uintptr_t)new_arena + sizeof(struct xstd_arena));
   }
 
@@ -55,31 +55,31 @@ void *arena_calloc(Allocator *a, size_t nmemb, size_t size) {
   alloc_size = alloc_size < sizeof(void *) ? sizeof(void *) : alloc_size;
 
   // No current arena.
-  if (alloc->arena_list == NULL) {
+  if (alloc->arena_list_ == NULL) {
     struct xstd_arena *new_arena =
-        alloc_calloc(alloc->parent_allocator, 1,
-                     alloc->arena_size + sizeof(struct xstd_arena));
+        alloc_calloc(alloc->parent_allocator_, 1,
+                     alloc->arena_size_ + sizeof(struct xstd_arena));
     if (new_arena == NULL)
       return NULL;
 
-    new_arena->next = alloc->arena_list;
-    alloc->arena_list = new_arena;
-    alloc->cursor = 0;
-  } else if (alloc->arena_size - alloc->cursor < alloc_size) {
+    new_arena->next = alloc->arena_list_;
+    alloc->arena_list_ = new_arena;
+    alloc->cursor_ = 0;
+  } else if (alloc->arena_size_ - alloc->cursor_ < alloc_size) {
     struct xstd_arena *new_arena =
-        alloc_calloc(alloc->parent_allocator, 1,
-                     alloc->arena_size + sizeof(struct xstd_arena));
+        alloc_calloc(alloc->parent_allocator_, 1,
+                     alloc->arena_size_ + sizeof(struct xstd_arena));
     if (new_arena == NULL)
       return NULL;
 
-    new_arena->next = alloc->arena_list;
-    alloc->arena_list = new_arena;
-    alloc->cursor = 0;
+    new_arena->next = alloc->arena_list_;
+    alloc->arena_list_ = new_arena;
+    alloc->cursor_ = 0;
   }
 
-  void *ptr = (void *)((uintptr_t)alloc->arena_list +
-                       sizeof(struct xstd_arena) + alloc->cursor);
-  alloc->cursor += alloc_size;
+  void *ptr = (void *)((uintptr_t)alloc->arena_list_ +
+                       sizeof(struct xstd_arena) + alloc->cursor_);
+  alloc->cursor_ += alloc_size;
   return ptr;
 }
 #endif
@@ -122,14 +122,14 @@ void arena_alloc_init(ArenaAllocator *arena, Allocator *parent,
   assert(arena_size > sizeof(void *) &&
          "arena size must be greater than size of a pointer");
 
-  arena->parent_allocator = parent;
-  arena->arena_size = arena_size;
-  arena->arena_list = NULL;
-  arena->allocator = (Allocator){0};
-  arena->allocator.malloc = &arena_malloc;
-  arena->allocator.calloc = &arena_calloc;
-  arena->allocator.realloc = &arena_realloc;
-  arena->allocator.free = &arena_free;
+  arena->parent_allocator_ = parent;
+  arena->arena_size_ = arena_size;
+  arena->arena_list_ = NULL;
+  arena->allocator_ = (Allocator){0};
+  arena->allocator_.malloc = &arena_malloc;
+  arena->allocator_.calloc = &arena_calloc;
+  arena->allocator_.realloc = &arena_realloc;
+  arena->allocator_.free = &arena_free;
 }
 #endif
 
@@ -137,15 +137,15 @@ void arena_alloc_reset(ArenaAllocator *arena);
 
 #ifdef XSTD_ARENA_IMPLEMENTATION
 void arena_alloc_reset(ArenaAllocator *arena_alloc) {
-  struct xstd_arena **arena = &arena_alloc->arena_list;
+  struct xstd_arena **arena = &arena_alloc->arena_list_;
   while (*arena != NULL) {
     struct xstd_arena *a = *arena;
     *arena = a->next;
-    alloc_free(arena_alloc->parent_allocator, a);
+    alloc_free(arena_alloc->parent_allocator_, a);
   }
 
-  arena_alloc_init(arena_alloc, arena_alloc->parent_allocator,
-                   arena_alloc->arena_size);
+  arena_alloc_init(arena_alloc, arena_alloc->parent_allocator_,
+                   arena_alloc->arena_size_);
 }
 #endif
 
