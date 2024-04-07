@@ -10,6 +10,127 @@
 
 #define type_assert_eq(X, Y)                                                   \
   _Generic((Y), typeof(X): _Generic((X), typeof(Y): (void)NULL))
+// Single file header allocator interface / vtable
+// from xstd (https://github.com/negrel/xstd.h).
+
+#ifndef XSTD_ALLOC_H_INCLUDE
+#define XSTD_ALLOC_H_INCLUDE
+
+#include <stddef.h>
+
+#ifdef XSTD_ALLOC_IMPLEMENTATION
+#include <assert.h>
+#include <stdint.h>
+#include <stdlib.h>
+#endif
+
+struct xstd_allocator_vtable {
+  void *(*malloc)(void *allocator, size_t size);
+  void (*free)(void *allocator, void *ptr);
+  void *(*calloc)(void *allocator, size_t nmemb, size_t size);
+  void *(*realloc)(void *allocator, void *ptr, size_t newsize);
+};
+
+// Allocator interface.
+typedef struct {
+  struct xstd_allocator_vtable *vtable_;
+  size_t offset_;
+} Allocator;
+
+// alloc_malloc() allocates size bytes and returns a pointer to the allocated
+// memory. The memory is not initialized.
+void *alloc_malloc(Allocator *, size_t);
+
+#ifdef XSTD_ALLOC_IMPLEMENTATION
+void *alloc_malloc(Allocator *allocator, size_t size) {
+  void *ptr = allocator->vtable_->malloc(
+      (void *)((uintptr_t)allocator + allocator->offset_), size);
+  assert(ptr != NULL);
+  return ptr;
+}
+#endif
+
+// alloc_free() frees the memory space pointed to by ptr, which must have been
+// returned by a previous call to malloc() or related functions.
+void alloc_free(Allocator *allocator, void *ptr);
+
+#ifdef XSTD_ALLOC_IMPLEMENTATION
+void alloc_free(Allocator *allocator, void *ptr) {
+  allocator->vtable_->free((void *)((uintptr_t)allocator + allocator->offset_),
+                           ptr);
+}
+#endif
+
+// The calloc() function allocates memory for an array of nmemb elements of size
+// bytes each and returns a pointer to the allocated memory. The memory is set
+// to zero.
+void *alloc_calloc(Allocator *allocator, size_t nmemb, size_t size);
+
+#ifdef XSTD_ALLOC_IMPLEMENTATION
+void *alloc_calloc(Allocator *allocator, size_t nmemb, size_t size) {
+  void *ptr = allocator->vtable_->calloc(
+      (void *)((uintptr_t)allocator + allocator->offset_), nmemb, size);
+  assert(ptr != NULL);
+  return ptr;
+}
+#endif
+
+// The realloc() function changes the size of the memory block pointed to by ptr
+// to newsize bytes. The contents of the memory will be unchanged in the range
+// from the start of the region up to the minimum of the old and new sizes. If
+// the new size is larger than the old size, the added memory will not be
+// initialized.
+void *alloc_realloc(Allocator *allocator, void *ptr, size_t newsize);
+
+#ifdef XSTD_ALLOC_IMPLEMENTATION
+void *alloc_realloc(Allocator *allocator, void *ptr, size_t newsize) {
+  ptr = allocator->vtable_->realloc(
+      (void *)((uintptr_t)allocator + allocator->offset_), ptr, newsize);
+  assert(ptr != NULL);
+  return ptr;
+}
+#endif
+
+Allocator *g_libc_allocator;
+
+#ifdef XSTD_ALLOC_IMPLEMENTATION
+static void *libc_malloc(void *alloc, size_t size) {
+  (void)alloc;
+  return malloc(size);
+}
+
+static void libc_free(void *alloc, void *ptr) {
+  (void)alloc;
+  free(ptr);
+}
+
+static void *libc_calloc(void *alloc, size_t nmemb, size_t size) {
+  (void)alloc;
+  void *ptr = calloc(nmemb, size);
+  return ptr;
+}
+
+static void *libc_realloc(void *alloc, void *ptr, size_t size) {
+  (void)alloc;
+  return realloc(ptr, size);
+}
+
+static struct xstd_allocator_vtable libc_allocator_vtable = {
+    .malloc = &libc_malloc,
+    .free = &libc_free,
+    .calloc = &libc_calloc,
+    .realloc = &libc_realloc,
+};
+
+static Allocator libc_allocator = {
+    .vtable_ = &libc_allocator_vtable,
+    .offset_ = 0,
+};
+
+Allocator *g_libc_allocator = &libc_allocator;
+#endif
+
+#endif
 #ifndef XSTD_IO_READER_H_INCLUDE
 #define XSTD_IO_READER_H_INCLUDE
 
@@ -20,13 +141,19 @@
 
 #ifdef XSTD_IO_READER_IMPLEMENTATION
 #include <errno.h>
+
+#define XSTD_ALLOC_IMPLEMENTATION
 #endif
 
-// Reader interface / virtual table. Reader is the interface that wraps the
-// basic read method.
+
+struct xstd_reader_vtable {
+  void (*read)(void *reader, uint8_t *p, size_t p_len, size_t *n, int *err);
+};
+
+// Reader is the interface that wraps the basic read method.
 //
-// read reads up to len(p) bytes into p. It returns the number of bytes read (0
-// <= n <= p_len) and any error encountered. Even if read returns n < p_len,
+// read reads up to len(p) bytes into p. It returns the number of bytes read
+// (0 <= n <= p_len) and any error encountered. Even if read returns n < p_len,
 // it may use all of p as scratch space during the call. If some data is
 // available but not p_len bytes, read conventionally returns what is available
 // instead of waiting for more.
@@ -52,8 +179,8 @@
 //
 // Implementations must not retain p.
 typedef struct xstd_reader {
-  void (*read)(struct xstd_reader *reader, uint8_t *p, size_t p_len, size_t *n,
-               int *err);
+  struct xstd_reader_vtable *vtable_;
+  size_t offset_;
 } Reader;
 
 // reader_read calls the read method of the reader.
@@ -62,7 +189,8 @@ void reader_read(Reader *reader, uint8_t *p, size_t p_len, size_t *n, int *err);
 #ifdef XSTD_IO_READER_IMPLEMENTATION
 void reader_read(Reader *reader, uint8_t *p, size_t p_len, size_t *n,
                  int *err) {
-  reader->read(reader, p, p_len, n, err);
+  reader->vtable_->read((void *)((uintptr_t)reader + reader->offset_), p, p_len,
+                        n, err);
 }
 #endif
 
@@ -73,35 +201,61 @@ typedef struct {
 } FileReader;
 
 // file_reader_read implements Reader.
-void file_reader_read(Reader *reader, uint8_t *p, size_t p_len, size_t *n,
-                      int *error);
-
 #ifdef XSTD_IO_READER_IMPLEMENTATION
-void file_reader_read(Reader *reader, uint8_t *p, size_t p_len, size_t *n,
-                      int *error) {
-  FileReader *freader = (FileReader *)reader;
-  size_t read = fread(p, sizeof(*p), p_len, freader->f_);
+static void file_reader_read(void *file, uint8_t *p, size_t p_len, size_t *n,
+                             int *error) {
+  FILE *f = *(void **)file;
+  size_t read = fread(p, sizeof(*p), p_len, f);
   if (n != NULL)
     *n = read;
 
   if (error != NULL) {
     *error = errno;
-    if (read == 0 && feof(freader->f_)) {
+    if (read == 0 && feof(f)) {
       *error = EOF;
     }
-    clearerr(freader->f_);
+    clearerr(f);
   }
 }
 #endif
 
-// file_reader creates and returns a FileReader that wraps the given file.
+// FileReader virtual table for Reader interface.
+struct xstd_reader_vtable file_reader_vtable;
+
+#ifdef XSTD_IO_READER_IMPLEMENTATION
+struct xstd_reader_vtable file_reader_vtable = {.read = &file_reader_read};
+#endif
+
+// file_reader_init initializes the given FileReader.
+void file_reader_init(FileReader *freader, FILE *f);
+
+#ifdef XSTD_IO_READER_IMPLEMENTATION
+void file_reader_init(FileReader *freader, FILE *f) {
+  *freader = (FileReader){0};
+  freader->reader.vtable_ = &file_reader_vtable;
+  freader->reader.offset_ = offsetof(FileReader, f_);
+  freader->f_ = f;
+}
+#endif
+
+// file_reader_new allocates, initializes and returns a new FileReader.
+FileReader *file_reader_new(Allocator *allocator, FILE *f);
+
+#ifdef XSTD_IO_READER_IMPLEMENTATION
+FileReader *file_reader_new(Allocator *allocator, FILE *f) {
+  FileReader *freader = alloc_malloc(allocator, sizeof(FileReader));
+  file_reader_init(freader, f);
+  return freader;
+}
+#endif
+
+// file_reader initializes and returns a FileReader that wraps the given file.
 FileReader file_reader(FILE *f);
 
 #ifdef XSTD_IO_READER_IMPLEMENTATION
 FileReader file_reader(FILE *f) {
   FileReader freader = {0};
-  freader.reader.read = &file_reader_read;
-  freader.f_ = f;
+  file_reader_init(&freader, f);
   return freader;
 }
 #endif
@@ -117,19 +271,25 @@ FileReader file_reader(FILE *f) {
 
 #ifdef XSTD_IO_WRITER_IMPLEMENTATION
 #include <errno.h>
+
+#define XSTD_ALLOC_IMPLEMENTATION
 #endif
 
-// Writer interface / virtual table. Writer is the interface that wraps the
-// basic Write method.
+
+struct xstd_writer_vtable {
+  void (*write)(void *writer, uint8_t *p, size_t p_len, size_t *n, int *err);
+};
+
+// Writer is the interface that wraps the basic Write method.
 //
 // Write writes len(p) bytes from p to the underlying data stream. It returns
 // the number of bytes written from p (0 <= n <= len(p)) and any error
 // encountered that caused the write to stop early. Write must return a non-nil
 // error if it returns n < len(p). Write must not modify the slice data, even
 // temporarily.
-typedef struct xstd_writer {
-  void (*write)(struct xstd_writer *writer, uint8_t *p, size_t p_len, size_t *n,
-                int *err);
+typedef struct {
+  struct xstd_writer_vtable *vtable_;
+  size_t offset_;
 } Writer;
 
 void writer_write(Writer *writer, uint8_t *p, size_t p_len, size_t *n,
@@ -138,7 +298,8 @@ void writer_write(Writer *writer, uint8_t *p, size_t p_len, size_t *n,
 #ifdef XSTD_IO_WRITER_IMPLEMENTATION
 void writer_write(Writer *writer, uint8_t *p, size_t p_len, size_t *n,
                   int *error) {
-  writer->write(writer, p, p_len, n, error);
+  writer->vtable_->write((void *)((uintptr_t)writer + writer->offset_), p,
+                         p_len, n, error);
 }
 #endif
 
@@ -148,37 +309,63 @@ typedef struct {
   FILE *f_;
 } FileWriter;
 
-// file_writer_write implements Writer.
-void file_writer_write(Writer *writer, uint8_t *p, size_t p_len, size_t *n,
-                       int *error);
-
 #ifdef XSTD_IO_WRITER_IMPLEMENTATION
-void file_writer_write(Writer *writer, uint8_t *p, size_t p_len, size_t *n,
-                       int *error) {
-  FileWriter *fwriter = (FileWriter *)writer;
-  size_t write = fwrite(p, sizeof(*p), p_len, fwriter->f_);
+static void file_writer_write(void *file, uint8_t *p, size_t p_len, size_t *n,
+                              int *error) {
+  FILE *f = *(void **)file;
+  size_t write = fwrite(p, sizeof(*p), p_len, f);
   if (n != NULL)
     *n = write;
 
   if (error != NULL) {
     *error = errno;
-    if (write == 0 && feof(fwriter->f_)) {
+    if (write == 0 && feof(f))
       *error = EOF;
-    }
-    clearerr(fwriter->f_);
+
+    clearerr(f);
   }
+}
+
+#endif
+
+// FileWriter virtual table for Writer interface.
+struct xstd_writer_vtable file_writer_vtable;
+
+#ifdef XSTD_IO_WRITER_IMPLEMENTATION
+struct xstd_writer_vtable file_writer_vtable = {.write = &file_writer_write};
+#endif
+
+// file_writer_init initializes the given FileWriter.
+void file_writer_init(FileWriter *fw, FILE *f);
+
+#ifdef XSTD_IO_WRITER_IMPLEMENTATION
+void file_writer_init(FileWriter *fw, FILE *f) {
+  *fw = (FileWriter){0};
+  fw->writer.vtable_ = &file_writer_vtable;
+  fw->writer.offset_ = offsetof(FileWriter, f_);
+  fw->f_ = f;
 }
 #endif
 
-// file_writer creates and returns a FileWriter that wraps the given file.
+// file_writer_new allocates, initializes and returns a new FileWriter.
+FileWriter *file_writer_new(Allocator *allocator, FILE *f);
+
+#ifdef XSTD_IO_WRITER_IMPLEMENTATION
+FileWriter *file_writer_new(Allocator *allocator, FILE *f) {
+  FileWriter *fw = alloc_malloc(allocator, sizeof(FileWriter));
+  file_writer_init(fw, f);
+  return fw;
+}
+#endif
+
+// file_writer initializes and returns a FileWriter that wraps the given file.
 FileWriter file_writer(FILE *f);
 
 #ifdef XSTD_IO_WRITER_IMPLEMENTATION
 FileWriter file_writer(FILE *f) {
-  FileWriter fwriter = {0};
-  fwriter.writer.write = &file_writer_write;
-  fwriter.f_ = f;
-  return fwriter;
+  FileWriter fw = {0};
+  file_writer_init(&fw, f);
+  return fw;
 }
 #endif
 
@@ -261,137 +448,10 @@ RangeIterator range_iter(int64_t start, int64_t end, int64_t step) {
 #endif
 
 #endif
-// Single file header allocator interface / vtable
-// from xstd (https://github.com/negrel/xstd.h).
-
-#ifndef XSTD_ALLOC_H_INCLUDE
-#define XSTD_ALLOC_H_INCLUDE
-
-#include <stddef.h>
-
-#ifdef XSTD_ALLOC_IMPLEMENTATION
-#include <assert.h>
-#include <stdlib.h>
-#endif
-
-// Allocator interface / virtual table.
-typedef struct xstd_allocator {
-  void *(*malloc)(struct xstd_allocator *allocator, size_t size);
-  void (*free)(struct xstd_allocator *allocator, void *ptr);
-  void *(*calloc)(struct xstd_allocator *allocator, size_t nmemb, size_t size);
-  void *(*realloc)(struct xstd_allocator *allocator, void *ptr, size_t newsize);
-} Allocator;
-
-// alloc_malloc() allocates size bytes and returns a pointer to the allocated
-// memory. The memory is not initialized.
-void *alloc_malloc(Allocator *, size_t);
-
-#ifdef XSTD_ALLOC_IMPLEMENTATION
-void *alloc_malloc(Allocator *allocator, size_t size) {
-  void *ptr = allocator->malloc(allocator, size);
-  assert(ptr != NULL);
-  return ptr;
-}
-#endif
-
-// alloc_free() frees the memory space pointed to by ptr, which must have been
-// returned by a previous call to malloc() or related functions.
-void alloc_free(Allocator *allocator, void *ptr);
-
-#ifdef XSTD_ALLOC_IMPLEMENTATION
-void alloc_free(Allocator *allocator, void *ptr) {
-  allocator->free(allocator, ptr);
-}
-#endif
-
-// The calloc() function allocates memory for an array of nmemb elements of size
-// bytes each and returns a pointer to the allocated memory. The memory is set
-// to zero.
-void *alloc_calloc(Allocator *allocator, size_t nmemb, size_t size);
-
-#ifdef XSTD_ALLOC_IMPLEMENTATION
-void *alloc_calloc(Allocator *allocator, size_t nmemb, size_t size) {
-  void *ptr = allocator->calloc(allocator, nmemb, size);
-  assert(ptr != NULL);
-  return ptr;
-}
-#endif
-
-// The realloc() function changes the size of the memory block pointed to by ptr
-// to newsize bytes. The contents of the memory will be unchanged in the range
-// from the start of the region up to the minimum of the old and new sizes. If
-// the new size is larger than the old size, the added memory will not be
-// initialized.
-void *alloc_realloc(Allocator *allocator, void *ptr, size_t newsize);
-
-#ifdef XSTD_ALLOC_IMPLEMENTATION
-void *alloc_realloc(Allocator *allocator, void *ptr, size_t newsize) {
-  ptr = allocator->realloc(allocator, ptr, newsize);
-  assert(ptr != NULL);
-  return ptr;
-}
-#endif
-
-// malloc implementation for libc allocator. Call alloc_malloc instead of this
-// function directly.
-void *libc_malloc(Allocator *, size_t size);
-
-#ifdef XSTD_ALLOC_IMPLEMENTATION
-void *libc_malloc(Allocator *alloc, size_t size) {
-  (void)alloc;
-  return malloc(size);
-}
-#endif
-
-// free implementation for libc allocator. Call alloc_free instead of this
-// function directly.
-void libc_free(Allocator *, void *);
-
-#ifdef XSTD_ALLOC_IMPLEMENTATION
-void libc_free(Allocator *alloc, void *ptr) {
-  (void)alloc;
-  free(ptr);
-}
-#endif
-
-// calloc implementation for libc allocator. Call alloc_calloc instead of this
-// function directly.
-void *libc_calloc(Allocator *, size_t nmemb, size_t size);
-
-#ifdef XSTD_ALLOC_IMPLEMENTATION
-void *libc_calloc(Allocator *alloc, size_t nmemb, size_t size) {
-  (void)alloc;
-  void *ptr = calloc(nmemb, size);
-  return ptr;
-}
-#endif
-
-// realloc implementation for libc allocator. Call alloc_realloc instead of this
-// function directly.
-void *libc_realloc(Allocator *, void *ptr, size_t size);
-
-#ifdef XSTD_ALLOC_IMPLEMENTATION
-void *libc_realloc(Allocator *alloc, void *ptr, size_t size) {
-  (void)alloc;
-  return realloc(ptr, size);
-}
-#endif
-
-// libc_alloc returns a libc based memory allocator.
-void libc_alloc_init(Allocator *);
-
-#ifdef XSTD_ALLOC_IMPLEMENTATION
-void libc_alloc_init(Allocator *alloc) {
-  alloc->malloc = &libc_malloc;
-  alloc->free = &libc_free;
-  alloc->calloc = &libc_calloc;
-  alloc->realloc = &libc_realloc;
-}
-#endif
-
-#endif
 #ifndef XSTD_ARENA_H_INCLUDE
 #define XSTD_ARENA_H_INCLUDE
+
+#include <stddef.h>
 
 #ifdef XSTD_ARENA_IMPLEMENTATION
 #include <assert.h>
@@ -400,13 +460,17 @@ void libc_alloc_init(Allocator *alloc) {
 #endif
 
 
-// ArenaAllocator is an arena allocator.
-typedef struct xstd_arena_allocator {
-  Allocator allocator_;
+struct xstd_arena_allocator_body {
   Allocator *parent_allocator_;
   size_t arena_size_;
   struct xstd_arena *arena_list_;
   size_t cursor_;
+};
+
+// ArenaAllocator is an arena allocator.
+typedef struct xstd_arena_allocator {
+  Allocator allocator;
+  struct xstd_arena_allocator_body body_;
 } ArenaAllocator;
 
 struct xstd_arena {
@@ -417,11 +481,13 @@ struct xstd_arena {
   // ...
 };
 
-void *arena_calloc(Allocator *allocator, size_t nmemb, size_t size);
+void arena_allocator_init(ArenaAllocator *arena, Allocator *parent,
+                          size_t arena_size);
 
 #ifdef XSTD_ARENA_IMPLEMENTATION
-void *arena_calloc(Allocator *a, size_t nmemb, size_t size) {
-  ArenaAllocator *alloc = (ArenaAllocator *)a;
+static void *arena_calloc(void *b, size_t nmemb, size_t size) {
+  struct xstd_arena_allocator_body *arena_body =
+      (struct xstd_arena_allocator_body *)b;
 
   // Detect overflow.
   size_t alloc_size = nmemb * size;
@@ -430,15 +496,16 @@ void *arena_calloc(Allocator *a, size_t nmemb, size_t size) {
     return NULL;
   }
 
-  if (alloc_size > alloc->arena_size_) {
-    struct xstd_arena *new_arena = alloc_calloc(
-        alloc->parent_allocator_, 1, alloc_size + sizeof(struct xstd_arena));
+  if (alloc_size > arena_body->arena_size_) {
+    struct xstd_arena *new_arena =
+        alloc_calloc(arena_body->parent_allocator_, 1,
+                     alloc_size + sizeof(struct xstd_arena));
     if (new_arena == NULL)
       return NULL;
 
-    new_arena->next = alloc->arena_list_;
-    alloc->arena_list_ = new_arena;
-    alloc->cursor_ = alloc->arena_size_; // Allocated arena as full.
+    new_arena->next = arena_body->arena_list_;
+    arena_body->arena_list_ = new_arena;
+    arena_body->cursor_ = arena_body->arena_size_; // Allocated arena as full.
     return (void *)((uintptr_t)new_arena + sizeof(struct xstd_arena));
   }
 
@@ -446,81 +513,79 @@ void *arena_calloc(Allocator *a, size_t nmemb, size_t size) {
   alloc_size = alloc_size < sizeof(void *) ? sizeof(void *) : alloc_size;
 
   // No current arena.
-  if (alloc->arena_list_ == NULL) {
+  if (arena_body->arena_list_ == NULL) {
     struct xstd_arena *new_arena =
-        alloc_calloc(alloc->parent_allocator_, 1,
-                     alloc->arena_size_ + sizeof(struct xstd_arena));
+        alloc_calloc(arena_body->parent_allocator_, 1,
+                     arena_body->arena_size_ + sizeof(struct xstd_arena));
     if (new_arena == NULL)
       return NULL;
 
-    new_arena->next = alloc->arena_list_;
-    alloc->arena_list_ = new_arena;
-    alloc->cursor_ = 0;
-  } else if (alloc->arena_size_ - alloc->cursor_ < alloc_size) {
+    new_arena->next = arena_body->arena_list_;
+    arena_body->arena_list_ = new_arena;
+    arena_body->cursor_ = 0;
+  } else if (arena_body->arena_size_ - arena_body->cursor_ < alloc_size) {
     struct xstd_arena *new_arena =
-        alloc_calloc(alloc->parent_allocator_, 1,
-                     alloc->arena_size_ + sizeof(struct xstd_arena));
+        alloc_calloc(arena_body->parent_allocator_, 1,
+                     arena_body->arena_size_ + sizeof(struct xstd_arena));
     if (new_arena == NULL)
       return NULL;
 
-    new_arena->next = alloc->arena_list_;
-    alloc->arena_list_ = new_arena;
-    alloc->cursor_ = 0;
+    new_arena->next = arena_body->arena_list_;
+    arena_body->arena_list_ = new_arena;
+    arena_body->cursor_ = 0;
   }
 
-  void *ptr = (void *)((uintptr_t)alloc->arena_list_ +
-                       sizeof(struct xstd_arena) + alloc->cursor_);
-  alloc->cursor_ += alloc_size;
+  void *ptr = (void *)((uintptr_t)arena_body->arena_list_ +
+                       sizeof(struct xstd_arena) + arena_body->cursor_);
+  arena_body->cursor_ += alloc_size;
   return ptr;
 }
-#endif
 
-void *arena_malloc(Allocator *allocator, size_t size);
-
-#ifdef XSTD_ARENA_IMPLEMENTATION
-void *arena_malloc(Allocator *allocator, size_t size) {
+static void *arena_malloc(void *allocator, size_t size) {
   return arena_calloc(allocator, 1, size);
 }
-#endif
 
-void *arena_realloc(Allocator *allocator, void *ptr, size_t size);
-
-#ifdef XSTD_ARENA_IMPLEMENTATION
-void *arena_realloc(Allocator *allocator, void *ptr, size_t size) {
+static void *arena_realloc(void *allocator, void *ptr, size_t size) {
   (void)ptr;
   // TODO: if last alloc, return same pointer.
   // TODO: if new size is smaller, return same pointer.
 
-  return alloc_malloc(allocator, size);
+  return arena_malloc(allocator, size);
 }
-#endif
 
-void arena_free(Allocator *allocator, void *ptr);
-
-#ifdef XSTD_ARENA_IMPLEMENTATION
-void arena_free(Allocator *allocator, void *ptr) {
+static void arena_free(void *allocator, void *ptr) {
   (void)allocator;
   (void)ptr;
 }
-#endif
 
-void arena_alloc_init(ArenaAllocator *arena, Allocator *parent,
-                      size_t arena_size);
+static struct xstd_allocator_vtable arena_allocator_vtable = {
+    .malloc = &arena_malloc,
+    .free = &arena_free,
+    .calloc = &arena_calloc,
+    .realloc = &arena_realloc,
+};
 
-#ifdef XSTD_ARENA_IMPLEMENTATION
-void arena_alloc_init(ArenaAllocator *arena, Allocator *parent,
-                      size_t arena_size) {
+void arena_allocator_init(ArenaAllocator *arena, Allocator *parent,
+                          size_t arena_size) {
   assert(arena_size > sizeof(void *) &&
          "arena size must be greater than size of a pointer");
 
-  arena->parent_allocator_ = parent;
-  arena->arena_size_ = arena_size;
-  arena->arena_list_ = NULL;
-  arena->allocator_ = (Allocator){0};
-  arena->allocator_.malloc = &arena_malloc;
-  arena->allocator_.calloc = &arena_calloc;
-  arena->allocator_.realloc = &arena_realloc;
-  arena->allocator_.free = &arena_free;
+  arena->body_.parent_allocator_ = parent;
+  arena->body_.arena_size_ = arena_size;
+  arena->body_.arena_list_ = NULL;
+  arena->allocator = (Allocator){0};
+  arena->allocator.vtable_ = &arena_allocator_vtable;
+  arena->allocator.offset_ = offsetof(ArenaAllocator, body_);
+}
+#endif
+
+ArenaAllocator arena_allocator(Allocator *parent, size_t arena_size);
+
+#ifdef XSTD_ARENA_IMPLEMENTATION
+ArenaAllocator arena_allocator(Allocator *parent, size_t arena_size) {
+  ArenaAllocator alloc = {0};
+  arena_allocator_init(&alloc, parent, arena_size);
+  return alloc;
 }
 #endif
 
@@ -528,15 +593,15 @@ void arena_alloc_reset(ArenaAllocator *arena);
 
 #ifdef XSTD_ARENA_IMPLEMENTATION
 void arena_alloc_reset(ArenaAllocator *arena_alloc) {
-  struct xstd_arena **arena = &arena_alloc->arena_list_;
+  struct xstd_arena **arena = &arena_alloc->body_.arena_list_;
   while (*arena != NULL) {
     struct xstd_arena *a = *arena;
     *arena = a->next;
-    alloc_free(arena_alloc->parent_allocator_, a);
+    alloc_free(arena_alloc->body_.parent_allocator_, a);
   }
 
-  arena_alloc_init(arena_alloc, arena_alloc->parent_allocator_,
-                   arena_alloc->arena_size_);
+  arena_allocator_init(arena_alloc, arena_alloc->body_.parent_allocator_,
+                       arena_alloc->body_.arena_size_);
 }
 #endif
 

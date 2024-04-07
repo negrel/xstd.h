@@ -8,13 +8,20 @@
 
 #ifdef XSTD_IO_READER_IMPLEMENTATION
 #include <errno.h>
+
+#define XSTD_ALLOC_IMPLEMENTATION
 #endif
 
-// Reader interface / virtual table. Reader is the interface that wraps the
-// basic read method.
+#include "xstd_alloc.h"
+
+struct xstd_reader_vtable {
+  void (*read)(void *reader, uint8_t *p, size_t p_len, size_t *n, int *err);
+};
+
+// Reader is the interface that wraps the basic read method.
 //
-// read reads up to len(p) bytes into p. It returns the number of bytes read (0
-// <= n <= p_len) and any error encountered. Even if read returns n < p_len,
+// read reads up to len(p) bytes into p. It returns the number of bytes read
+// (0 <= n <= p_len) and any error encountered. Even if read returns n < p_len,
 // it may use all of p as scratch space during the call. If some data is
 // available but not p_len bytes, read conventionally returns what is available
 // instead of waiting for more.
@@ -40,8 +47,8 @@
 //
 // Implementations must not retain p.
 typedef struct xstd_reader {
-  void (*read)(struct xstd_reader *reader, uint8_t *p, size_t p_len, size_t *n,
-               int *err);
+  struct xstd_reader_vtable *vtable_;
+  size_t offset_;
 } Reader;
 
 // reader_read calls the read method of the reader.
@@ -50,7 +57,8 @@ void reader_read(Reader *reader, uint8_t *p, size_t p_len, size_t *n, int *err);
 #ifdef XSTD_IO_READER_IMPLEMENTATION
 void reader_read(Reader *reader, uint8_t *p, size_t p_len, size_t *n,
                  int *err) {
-  reader->read(reader, p, p_len, n, err);
+  reader->vtable_->read((void *)((uintptr_t)reader + reader->offset_), p, p_len,
+                        n, err);
 }
 #endif
 
@@ -61,35 +69,61 @@ typedef struct {
 } FileReader;
 
 // file_reader_read implements Reader.
-void file_reader_read(Reader *reader, uint8_t *p, size_t p_len, size_t *n,
-                      int *error);
-
 #ifdef XSTD_IO_READER_IMPLEMENTATION
-void file_reader_read(Reader *reader, uint8_t *p, size_t p_len, size_t *n,
-                      int *error) {
-  FileReader *freader = (FileReader *)reader;
-  size_t read = fread(p, sizeof(*p), p_len, freader->f_);
+static void file_reader_read(void *file, uint8_t *p, size_t p_len, size_t *n,
+                             int *error) {
+  FILE *f = *(void **)file;
+  size_t read = fread(p, sizeof(*p), p_len, f);
   if (n != NULL)
     *n = read;
 
   if (error != NULL) {
     *error = errno;
-    if (read == 0 && feof(freader->f_)) {
+    if (read == 0 && feof(f)) {
       *error = EOF;
     }
-    clearerr(freader->f_);
+    clearerr(f);
   }
 }
 #endif
 
-// file_reader creates and returns a FileReader that wraps the given file.
+// FileReader virtual table for Reader interface.
+struct xstd_reader_vtable file_reader_vtable;
+
+#ifdef XSTD_IO_READER_IMPLEMENTATION
+struct xstd_reader_vtable file_reader_vtable = {.read = &file_reader_read};
+#endif
+
+// file_reader_init initializes the given FileReader.
+void file_reader_init(FileReader *freader, FILE *f);
+
+#ifdef XSTD_IO_READER_IMPLEMENTATION
+void file_reader_init(FileReader *freader, FILE *f) {
+  *freader = (FileReader){0};
+  freader->reader.vtable_ = &file_reader_vtable;
+  freader->reader.offset_ = offsetof(FileReader, f_);
+  freader->f_ = f;
+}
+#endif
+
+// file_reader_new allocates, initializes and returns a new FileReader.
+FileReader *file_reader_new(Allocator *allocator, FILE *f);
+
+#ifdef XSTD_IO_READER_IMPLEMENTATION
+FileReader *file_reader_new(Allocator *allocator, FILE *f) {
+  FileReader *freader = alloc_malloc(allocator, sizeof(FileReader));
+  file_reader_init(freader, f);
+  return freader;
+}
+#endif
+
+// file_reader initializes and returns a FileReader that wraps the given file.
 FileReader file_reader(FILE *f);
 
 #ifdef XSTD_IO_READER_IMPLEMENTATION
 FileReader file_reader(FILE *f) {
   FileReader freader = {0};
-  freader.reader.read = &file_reader_read;
-  freader.f_ = f;
+  file_reader_init(&freader, f);
   return freader;
 }
 #endif

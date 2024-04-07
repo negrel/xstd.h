@@ -20,7 +20,7 @@ clean:
 .PHONY: bundle
 bundle: xstd.h
 
-xstd.h: xstd_internal.h xstd_io_reader.h xstd_io_writer.h xstd_iter.h xstd_alloc.h xstd_arena.h xstd_vec.h xstd_list.h
+xstd.h: xstd_internal.h xstd_alloc.h xstd_io_reader.h xstd_io_writer.h xstd_iter.h xstd_arena.h xstd_vec.h xstd_list.h
 	cat <(printf "// XSTD bundle from https://github.com/negrel/xstd.h\n\n") $^ \
 		| grep -Ev '^#include "xstd_.*"$$' > $@
 	$(MKDIR_P) $(BUILD_DIR)
