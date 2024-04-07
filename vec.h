@@ -292,34 +292,40 @@ void vec_free(Vec vec) {
        tmp.i == 0; tmp.i = 1)                                                  \
   iter_foreach((Iterator *)&tmp.iter, typeof(vec), iterator)
 
+struct xstd_vec_iterator_body {
+  size_t cursor_;
+  Vec vec_;
+};
+
 // VecIterator is a wrapper around Vec that implements the Iterator interface.
 // VecIterator pointer can safely be casted to Iterator *.
 typedef struct {
-  Iterator iterator_;
-  size_t cursor_;
-  Vec vec_;
+  Iterator iterator;
+  struct xstd_vec_iterator_body body_;
 } VecIterator;
 
-// vec_iter_next implements Iterator interface for VecIterator.
-void *vec_iter_next(Iterator *it);
-
 #ifdef XSTD_IMPLEMENTATION
-void *vec_iter_next(Iterator *it) {
-  if (it == NULL)
+static void *vec_iter_next(void *body) {
+  if (body == NULL)
     return NULL;
 
-  VecIterator *iter = (VecIterator *)it;
+  struct xstd_vec_iterator_body *b = (struct xstd_vec_iterator_body *)body;
   void *result = NULL;
 
-  struct xstd_vector *vec = headerof_vec(iter->vec_);
-  if (iter->cursor_ < vec->len_) {
-    result =
-        (void *)((uintptr_t)(iter->vec_) + iter->cursor_ * vec->elem_size_);
-    iter->cursor_++;
+  struct xstd_vector *vec = headerof_vec(b->vec_);
+  if (b->cursor_ < vec->len_) {
+    result = (void *)((uintptr_t)(b->vec_) + b->cursor_ * vec->elem_size_);
+    b->cursor_++;
   }
 
   return result;
 }
+#endif
+
+struct xstd_iterator_vtable vec_iterator_vtable;
+
+#ifdef XSTD_IMPLEMENTATION
+struct xstd_iterator_vtable vec_iterator_vtable = {.next = &vec_iter_next};
 #endif
 
 // vec_iter creates a VecIterator that wraps the given vector.
@@ -328,9 +334,10 @@ VecIterator vec_iter(const Vec vec);
 #ifdef XSTD_IMPLEMENTATION
 VecIterator vec_iter(const Vec vec) {
   VecIterator iterator = {0};
-  iterator.iterator_.next = &vec_iter_next;
-  iterator.cursor_ = 0;
-  iterator.vec_ = vec;
+  iterator.iterator.vtable_ = &vec_iterator_vtable;
+  iterator.iterator.offset_ = offsetof(VecIterator, body_),
+  iterator.body_.cursor_ = 0;
+  iterator.body_.vec_ = vec;
 
   return iterator;
 }

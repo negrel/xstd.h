@@ -4,11 +4,20 @@
 #ifndef XSTD_ITER_H_INCLUDE
 #define XSTD_ITER_H_INCLUDE
 
+#include <stddef.h>
 #include <stdint.h>
 #include <string.h>
 
+#include "alloc.h"
+
+struct xstd_iterator_vtable {
+  void *(*next)(void *);
+};
+
+// Iterator interface.
 typedef struct xstd_iterator {
-  void *(*next)(struct xstd_iterator *);
+  struct xstd_iterator_vtable *vtable_;
+  size_t offset_;
 } Iterator;
 
 #define iter_foreach(iter, type, iterator)                                     \
@@ -27,7 +36,9 @@ typedef struct xstd_iterator {
 void *iter_next(Iterator *);
 
 #ifdef XSTD_IMPLEMENTATION
-void *iter_next(Iterator *iter) { return iter->next(iter); }
+void *iter_next(Iterator *iter) {
+  return iter->vtable_->next((void *)((uintptr_t)iter + iter->offset_));
+}
 #endif
 
 #define range_foreach(iterator, from, to, step)                                \
@@ -41,23 +52,61 @@ void *iter_next(Iterator *iter) { return iter->next(iter); }
 #define range_to_foreach(i, to) range_foreach(i, 0, to, 1)
 #define range_from_to_foreach(i, from, to) range_foreach(i, from, to, 1)
 
+struct xstd_range_iter_body {
+  int64_t value, end, step;
+};
+
 typedef struct xstd_range_iter {
   Iterator iterator;
-  int64_t value, start, end, step;
+  struct xstd_range_iter_body body_;
 } RangeIterator;
 
-void *range_iter_next(Iterator *it);
 #ifdef XSTD_IMPLEMENTATION
-void *range_iter_next(Iterator *it) {
-  RangeIterator *iter = (RangeIterator *)it;
+static void *range_iterator_next(void *body) {
+  struct xstd_range_iter_body *b = (struct xstd_range_iter_body *)body;
 
-  iter->value += iter->step;
-  if (iter->value >= iter->end) {
-    iter->value -= iter->step;
+  b->value += b->step;
+  if (b->value >= b->end) {
+    b->value -= b->step;
     return NULL;
   }
 
-  return &iter->value;
+  return &b->value;
+}
+#endif
+
+struct xstd_iterator_vtable xstd_range_iterator_vtable;
+
+#ifdef XSTD_IMPLEMENTATION
+struct xstd_iterator_vtable xstd_range_iterator_vtable = {
+    .next = &range_iterator_next,
+};
+#endif
+
+void range_iterator_init(RangeIterator *range_iterator, int64_t start,
+                         int64_t end, int64_t step);
+
+#ifdef XSTD_IMPLEMENTATION
+void range_iterator_init(RangeIterator *range_iterator, int64_t start,
+                         int64_t end, int64_t step) {
+  *range_iterator = (RangeIterator){0};
+  range_iterator->iterator.vtable_ = &xstd_range_iterator_vtable;
+  range_iterator->iterator.offset_ = offsetof(RangeIterator, body_);
+  range_iterator->body_.end = end;
+  range_iterator->body_.step = step;
+  range_iterator->body_.value = start - step;
+}
+#endif
+
+RangeIterator *range_iterator_new(Allocator *allocator, int64_t start,
+                                  int64_t end, int64_t step);
+
+#ifdef XSTD_IMPLEMENTATION
+RangeIterator *range_iterator_new(Allocator *allocator, int64_t start,
+                                  int64_t end, int64_t step) {
+  RangeIterator *ri = alloc_malloc(allocator, sizeof(RangeIterator));
+  range_iterator_init(ri, start, end, step);
+  return ri;
 }
 #endif
 
@@ -65,13 +114,9 @@ RangeIterator range_iter(int64_t start, int64_t end, int64_t step);
 
 #ifdef XSTD_IMPLEMENTATION
 RangeIterator range_iter(int64_t start, int64_t end, int64_t step) {
-  RangeIterator iter = {0};
-  iter.iterator.next = &range_iter_next;
-  iter.value = start - step;
-  iter.end = end;
-  iter.step = step;
-
-  return iter;
+  RangeIterator ri = {0};
+  range_iterator_init(&ri, start, end, step);
+  return ri;
 }
 #endif
 

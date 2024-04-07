@@ -650,11 +650,19 @@ FileWriteCloser file_write_closer(FILE *f) {
 #ifndef XSTD_ITER_H_INCLUDE
 #define XSTD_ITER_H_INCLUDE
 
+#include <stddef.h>
 #include <stdint.h>
 #include <string.h>
 
+
+struct xstd_iterator_vtable {
+  void *(*next)(void *);
+};
+
+// Iterator interface.
 typedef struct xstd_iterator {
-  void *(*next)(struct xstd_iterator *);
+  struct xstd_iterator_vtable *vtable_;
+  size_t offset_;
 } Iterator;
 
 #define iter_foreach(iter, type, iterator)                                     \
@@ -673,7 +681,9 @@ typedef struct xstd_iterator {
 void *iter_next(Iterator *);
 
 #ifdef XSTD_IMPLEMENTATION
-void *iter_next(Iterator *iter) { return iter->next(iter); }
+void *iter_next(Iterator *iter) {
+  return iter->vtable_->next((void *)((uintptr_t)iter + iter->offset_));
+}
 #endif
 
 #define range_foreach(iterator, from, to, step)                                \
@@ -687,23 +697,61 @@ void *iter_next(Iterator *iter) { return iter->next(iter); }
 #define range_to_foreach(i, to) range_foreach(i, 0, to, 1)
 #define range_from_to_foreach(i, from, to) range_foreach(i, from, to, 1)
 
+struct xstd_range_iter_body {
+  int64_t value, end, step;
+};
+
 typedef struct xstd_range_iter {
   Iterator iterator;
-  int64_t value, start, end, step;
+  struct xstd_range_iter_body body_;
 } RangeIterator;
 
-void *range_iter_next(Iterator *it);
 #ifdef XSTD_IMPLEMENTATION
-void *range_iter_next(Iterator *it) {
-  RangeIterator *iter = (RangeIterator *)it;
+static void *range_iterator_next(void *body) {
+  struct xstd_range_iter_body *b = (struct xstd_range_iter_body *)body;
 
-  iter->value += iter->step;
-  if (iter->value >= iter->end) {
-    iter->value -= iter->step;
+  b->value += b->step;
+  if (b->value >= b->end) {
+    b->value -= b->step;
     return NULL;
   }
 
-  return &iter->value;
+  return &b->value;
+}
+#endif
+
+struct xstd_iterator_vtable xstd_range_iterator_vtable;
+
+#ifdef XSTD_IMPLEMENTATION
+struct xstd_iterator_vtable xstd_range_iterator_vtable = {
+    .next = &range_iterator_next,
+};
+#endif
+
+void range_iterator_init(RangeIterator *range_iterator, int64_t start,
+                         int64_t end, int64_t step);
+
+#ifdef XSTD_IMPLEMENTATION
+void range_iterator_init(RangeIterator *range_iterator, int64_t start,
+                         int64_t end, int64_t step) {
+  *range_iterator = (RangeIterator){0};
+  range_iterator->iterator.vtable_ = &xstd_range_iterator_vtable;
+  range_iterator->iterator.offset_ = offsetof(RangeIterator, body_);
+  range_iterator->body_.end = end;
+  range_iterator->body_.step = step;
+  range_iterator->body_.value = start - step;
+}
+#endif
+
+RangeIterator *range_iterator_new(Allocator *allocator, int64_t start,
+                                  int64_t end, int64_t step);
+
+#ifdef XSTD_IMPLEMENTATION
+RangeIterator *range_iterator_new(Allocator *allocator, int64_t start,
+                                  int64_t end, int64_t step) {
+  RangeIterator *ri = alloc_malloc(allocator, sizeof(RangeIterator));
+  range_iterator_init(ri, start, end, step);
+  return ri;
 }
 #endif
 
@@ -711,13 +759,9 @@ RangeIterator range_iter(int64_t start, int64_t end, int64_t step);
 
 #ifdef XSTD_IMPLEMENTATION
 RangeIterator range_iter(int64_t start, int64_t end, int64_t step) {
-  RangeIterator iter = {0};
-  iter.iterator.next = &range_iter_next;
-  iter.value = start - step;
-  iter.end = end;
-  iter.step = step;
-
-  return iter;
+  RangeIterator ri = {0};
+  range_iterator_init(&ri, start, end, step);
+  return ri;
 }
 #endif
 
@@ -1170,34 +1214,40 @@ void vec_free(Vec vec) {
        tmp.i == 0; tmp.i = 1)                                                  \
   iter_foreach((Iterator *)&tmp.iter, typeof(vec), iterator)
 
+struct xstd_vec_iterator_body {
+  size_t cursor_;
+  Vec vec_;
+};
+
 // VecIterator is a wrapper around Vec that implements the Iterator interface.
 // VecIterator pointer can safely be casted to Iterator *.
 typedef struct {
-  Iterator iterator_;
-  size_t cursor_;
-  Vec vec_;
+  Iterator iterator;
+  struct xstd_vec_iterator_body body_;
 } VecIterator;
 
-// vec_iter_next implements Iterator interface for VecIterator.
-void *vec_iter_next(Iterator *it);
-
 #ifdef XSTD_IMPLEMENTATION
-void *vec_iter_next(Iterator *it) {
-  if (it == NULL)
+static void *vec_iter_next(void *body) {
+  if (body == NULL)
     return NULL;
 
-  VecIterator *iter = (VecIterator *)it;
+  struct xstd_vec_iterator_body *b = (struct xstd_vec_iterator_body *)body;
   void *result = NULL;
 
-  struct xstd_vector *vec = headerof_vec(iter->vec_);
-  if (iter->cursor_ < vec->len_) {
-    result =
-        (void *)((uintptr_t)(iter->vec_) + iter->cursor_ * vec->elem_size_);
-    iter->cursor_++;
+  struct xstd_vector *vec = headerof_vec(b->vec_);
+  if (b->cursor_ < vec->len_) {
+    result = (void *)((uintptr_t)(b->vec_) + b->cursor_ * vec->elem_size_);
+    b->cursor_++;
   }
 
   return result;
 }
+#endif
+
+struct xstd_iterator_vtable vec_iterator_vtable;
+
+#ifdef XSTD_IMPLEMENTATION
+struct xstd_iterator_vtable vec_iterator_vtable = {.next = &vec_iter_next};
 #endif
 
 // vec_iter creates a VecIterator that wraps the given vector.
@@ -1206,9 +1256,10 @@ VecIterator vec_iter(const Vec vec);
 #ifdef XSTD_IMPLEMENTATION
 VecIterator vec_iter(const Vec vec) {
   VecIterator iterator = {0};
-  iterator.iterator_.next = &vec_iter_next;
-  iterator.cursor_ = 0;
-  iterator.vec_ = vec;
+  iterator.iterator.vtable_ = &vec_iterator_vtable;
+  iterator.iterator.offset_ = offsetof(VecIterator, body_),
+  iterator.body_.cursor_ = 0;
+  iterator.body_.vec_ = vec;
 
   return iterator;
 }
@@ -1302,13 +1353,12 @@ void *list_remove_next_(void *list) {
 }
 #endif
 
-void *list_iter_next(Iterator *iterator);
+void *list_iter_next(void *list);
 
 #ifdef XSTD_IMPLEMENTATION
-void *list_iter_next(Iterator *iterator) {
+void *list_iter_next(void *list) {
   // 2nd field of list iterator (the list itself).
-  void **iterator_list_field_ptr =
-      (void **)((uintptr_t)iterator + sizeof(Iterator));
+  void **iterator_list_field_ptr = (void **)list;
 
   void *next = *iterator_list_field_ptr;
   *iterator_list_field_ptr = list_next_(*iterator_list_field_ptr);
@@ -1317,18 +1367,27 @@ void *list_iter_next(Iterator *iterator) {
 }
 #endif
 
+struct xstd_iterator_vtable list_iterator_vtable;
+
+#ifdef XSTD_IMPLEMENTATION
+struct xstd_iterator_vtable list_iterator_vtable = {
+    .next = &list_iter_next,
+};
+#endif
+
 #define typedef_list_iterator(list_type, type_name)                            \
   typedef struct {                                                             \
     Iterator iterator;                                                         \
-    list_type *list;                                                           \
+    list_type *list_;                                                          \
   } type_name
 
 #define fndef_list_iterator_init(list_iter_type, list_type, fn_name)           \
   list_iter_type fn_name(list_type *list);                                     \
   list_iter_type fn_name(list_type *list) {                                    \
     list_iter_type iter = {0};                                                 \
-    iter.iterator.next = &list_iter_next;                                      \
-    iter.list = list;                                                          \
+    iter.iterator.vtable_ = &list_iterator_vtable;                             \
+    iter.iterator.offset_ = offsetof(list_iter_type, list_);                   \
+    iter.list_ = list;                                                         \
     return iter;                                                               \
   }
 

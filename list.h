@@ -87,13 +87,12 @@ void *list_remove_next_(void *list) {
 }
 #endif
 
-void *list_iter_next(Iterator *iterator);
+void *list_iter_next(void *list);
 
 #ifdef XSTD_IMPLEMENTATION
-void *list_iter_next(Iterator *iterator) {
+void *list_iter_next(void *list) {
   // 2nd field of list iterator (the list itself).
-  void **iterator_list_field_ptr =
-      (void **)((uintptr_t)iterator + sizeof(Iterator));
+  void **iterator_list_field_ptr = (void **)list;
 
   void *next = *iterator_list_field_ptr;
   *iterator_list_field_ptr = list_next_(*iterator_list_field_ptr);
@@ -102,18 +101,27 @@ void *list_iter_next(Iterator *iterator) {
 }
 #endif
 
+struct xstd_iterator_vtable list_iterator_vtable;
+
+#ifdef XSTD_IMPLEMENTATION
+struct xstd_iterator_vtable list_iterator_vtable = {
+    .next = &list_iter_next,
+};
+#endif
+
 #define typedef_list_iterator(list_type, type_name)                            \
   typedef struct {                                                             \
     Iterator iterator;                                                         \
-    list_type *list;                                                           \
+    list_type *list_;                                                          \
   } type_name
 
 #define fndef_list_iterator_init(list_iter_type, list_type, fn_name)           \
   list_iter_type fn_name(list_type *list);                                     \
   list_iter_type fn_name(list_type *list) {                                    \
     list_iter_type iter = {0};                                                 \
-    iter.iterator.next = &list_iter_next;                                      \
-    iter.list = list;                                                          \
+    iter.iterator.vtable_ = &list_iterator_vtable;                             \
+    iter.iterator.offset_ = offsetof(list_iter_type, list_);                   \
+    iter.list_ = list;                                                         \
     return iter;                                                               \
   }
 
