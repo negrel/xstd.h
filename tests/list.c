@@ -3,8 +3,8 @@
 
 #include <check.h>
 
-#define XSTD_LIST_IMPLEMENTATION
-#include "xstd_list.h"
+#define XSTD_IMPLEMENTATION
+#include "list.h"
 
 typedef_list(int, IntList);
 

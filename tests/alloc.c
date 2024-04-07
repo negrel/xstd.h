@@ -2,8 +2,8 @@
 
 #include <check.h>
 
-#define XSTD_ALLOC_IMPLEMENTATION
-#include "xstd_alloc.h"
+#define XSTD_IMPLEMENTATION
+#include "alloc.h"
 
 START_TEST(test_libc_malloc) {
   size_t *ptr = alloc_malloc(g_libc_allocator, sizeof(size_t));

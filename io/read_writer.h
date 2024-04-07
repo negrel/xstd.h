@@ -1,17 +1,13 @@
 #ifndef XSTD_IO_READ_WRITER_H_INCLUDE
 #define XSTD_IO_READ_WRITER_H_INCLUDE
 
-#ifdef XSTD_IO_READ_WRITER_IMPLEMENTATION
+#ifdef XSTD_IMPLEMENTATION
 #include <stddef.h>
-
-#define XSTD_ALLOC_IMPLEMENTATION
-#define XSTD_IO_READER_IMPLEMENTATION
-#define XSTD_IO_WRITER_IMPLEMENTATION
 #endif
 
-#include "xstd_alloc.h"
-#include "xstd_io_reader.h"
-#include "xstd_io_writer.h"
+#include "alloc.h"
+#include "io/reader.h"
+#include "io/writer.h"
 
 // ReadWriter is the interface that groups the basic Read and Write methods.
 typedef struct {
@@ -28,7 +24,7 @@ typedef struct {
 // file_read_writer_init initializes the given FileReadWriter.
 void file_read_writer_init(FileReadWriter *frw, FILE *f);
 
-#ifdef XSTD_IO_READ_WRITER_IMPLEMENTATION
+#ifdef XSTD_IMPLEMENTATION
 void file_read_writer_init(FileReadWriter *frw, FILE *f) {
   *frw = (FileReadWriter){0};
   frw->read_writer.reader.vtable_ = &file_reader_vtable;
@@ -47,7 +43,7 @@ void file_read_writer_init(FileReadWriter *frw, FILE *f) {
 // wraps the given file.
 FileReadWriter *file_read_writer_new(Allocator *allocator, FILE *f);
 
-#ifdef XSTD_IO_READ_WRITER_IMPLEMENTATION
+#ifdef XSTD_IMPLEMENTATION
 FileReadWriter *file_read_writer_new(Allocator *allocator, FILE *f) {
   FileReadWriter *frw = alloc_malloc(allocator, sizeof(FileReadWriter));
   file_read_writer_init(frw, f);
@@ -59,7 +55,7 @@ FileReadWriter *file_read_writer_new(Allocator *allocator, FILE *f) {
 // given file.
 FileReadWriter file_read_writer(FILE *f);
 
-#ifdef XSTD_IO_READER_IMPLEMENTATION
+#ifdef XSTD_IMPLEMENTATION
 FileReadWriter file_read_writer(FILE *f) {
   FileReadWriter frw = {0};
   file_read_writer_init(&frw, f);

@@ -26,7 +26,7 @@ typedef struct xstd_iterator {
 
 void *iter_next(Iterator *);
 
-#ifdef XSTD_ITER_IMPLEMENTATION
+#ifdef XSTD_IMPLEMENTATION
 void *iter_next(Iterator *iter) { return iter->next(iter); }
 #endif
 
@@ -47,7 +47,7 @@ typedef struct xstd_range_iter {
 } RangeIterator;
 
 void *range_iter_next(Iterator *it);
-#ifdef XSTD_ITER_IMPLEMENTATION
+#ifdef XSTD_IMPLEMENTATION
 void *range_iter_next(Iterator *it) {
   RangeIterator *iter = (RangeIterator *)it;
 
@@ -63,7 +63,7 @@ void *range_iter_next(Iterator *it) {
 
 RangeIterator range_iter(int64_t start, int64_t end, int64_t step);
 
-#ifdef XSTD_ITER_IMPLEMENTATION
+#ifdef XSTD_IMPLEMENTATION
 RangeIterator range_iter(int64_t start, int64_t end, int64_t step) {
   RangeIterator iter = {0};
   iter.iterator.next = &range_iter_next;

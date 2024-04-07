@@ -18,7 +18,7 @@
 
 #include <stddef.h>
 
-#ifdef XSTD_ALLOC_IMPLEMENTATION
+#ifdef XSTD_IMPLEMENTATION
 #include <assert.h>
 #include <stdint.h>
 #include <stdlib.h>
@@ -41,7 +41,7 @@ typedef struct {
 // memory. The memory is not initialized.
 void *alloc_malloc(Allocator *, size_t);
 
-#ifdef XSTD_ALLOC_IMPLEMENTATION
+#ifdef XSTD_IMPLEMENTATION
 void *alloc_malloc(Allocator *allocator, size_t size) {
   void *ptr = allocator->vtable_->malloc(
       (void *)((uintptr_t)allocator + allocator->offset_), size);
@@ -54,7 +54,7 @@ void *alloc_malloc(Allocator *allocator, size_t size) {
 // returned by a previous call to malloc() or related functions.
 void alloc_free(Allocator *allocator, void *ptr);
 
-#ifdef XSTD_ALLOC_IMPLEMENTATION
+#ifdef XSTD_IMPLEMENTATION
 void alloc_free(Allocator *allocator, void *ptr) {
   allocator->vtable_->free((void *)((uintptr_t)allocator + allocator->offset_),
                            ptr);
@@ -66,7 +66,7 @@ void alloc_free(Allocator *allocator, void *ptr) {
 // to zero.
 void *alloc_calloc(Allocator *allocator, size_t nmemb, size_t size);
 
-#ifdef XSTD_ALLOC_IMPLEMENTATION
+#ifdef XSTD_IMPLEMENTATION
 void *alloc_calloc(Allocator *allocator, size_t nmemb, size_t size) {
   void *ptr = allocator->vtable_->calloc(
       (void *)((uintptr_t)allocator + allocator->offset_), nmemb, size);
@@ -82,7 +82,7 @@ void *alloc_calloc(Allocator *allocator, size_t nmemb, size_t size) {
 // initialized.
 void *alloc_realloc(Allocator *allocator, void *ptr, size_t newsize);
 
-#ifdef XSTD_ALLOC_IMPLEMENTATION
+#ifdef XSTD_IMPLEMENTATION
 void *alloc_realloc(Allocator *allocator, void *ptr, size_t newsize) {
   ptr = allocator->vtable_->realloc(
       (void *)((uintptr_t)allocator + allocator->offset_), ptr, newsize);
@@ -93,7 +93,7 @@ void *alloc_realloc(Allocator *allocator, void *ptr, size_t newsize) {
 
 Allocator *g_libc_allocator;
 
-#ifdef XSTD_ALLOC_IMPLEMENTATION
+#ifdef XSTD_IMPLEMENTATION
 static void *libc_malloc(void *alloc, size_t size) {
   (void)alloc;
   return malloc(size);
@@ -131,6 +131,95 @@ Allocator *g_libc_allocator = &libc_allocator;
 #endif
 
 #endif
+#ifndef XSTD_IO_CLOSER_H_INCLUDE
+#define XSTD_IO_CLOSER_H_INCLUDE
+
+#include <stdbool.h>
+#include <stdio.h>
+
+#ifdef XSTD_IMPLEMENTATION
+#include <errno.h>
+#include <stddef.h>
+#include <stdint.h>
+#endif
+
+
+struct xstd_closer_vtable {
+  void (*close)(void *closer, int *error);
+};
+
+// Closer interface / virtual table. Closer is the interface that wraps basic
+// Close method. The behavior of Close after the first call is undefined.
+// Specific implementations may document their own behavior.
+typedef struct {
+  struct xstd_closer_vtable *vtable_;
+  size_t offset_;
+} Closer;
+
+// closer_close calls the close method of the closer.
+void closer_close(Closer *closer, int *error);
+
+#ifdef XSTD_IMPLEMENTATION
+void closer_close(Closer *closer, int *error) {
+  closer->vtable_->close((void *)((uintptr_t)closer + closer->offset_), error);
+}
+#endif
+
+// FileCloser wraps FILE and implements the Closer interface.
+typedef struct {
+  Closer closer;
+  FILE *f_;
+} FileCloser;
+
+#ifdef XSTD_IMPLEMENTATION
+static void file_closer_close(void *file, int *error) {
+  FILE *f = *(void **)file;
+  if (!fclose(f))
+    *error = errno;
+}
+#endif
+
+struct xstd_closer_vtable file_closer_vtable;
+
+#ifdef XSTD_IMPLEMENTATION
+struct xstd_closer_vtable file_closer_vtable = {.close = &file_closer_close};
+#endif
+
+// file_closer_init initializes the given FileCloser.
+void file_closer_init(FileCloser *fcloser, FILE *f);
+
+#ifdef XSTD_IMPLEMENTATION
+void file_closer_init(FileCloser *fcloser, FILE *f) {
+  *fcloser = (FileCloser){0};
+  fcloser->closer.vtable_ = &file_closer_vtable;
+  fcloser->closer.offset_ = offsetof(FileCloser, f_);
+  fcloser->f_ = f;
+}
+#endif
+
+// file_closer_new allocates, initiliazes and returns a new FileCloser.
+FileCloser *file_closer_new(Allocator *allocator, FILE *f);
+
+#ifdef XSTD_IMPLEMENTATION
+FileCloser *file_closer_new(Allocator *allocator, FILE *f) {
+  FileCloser *fcloser = alloc_malloc(allocator, sizeof(FileCloser));
+  file_closer_init(fcloser, f);
+  return fcloser;
+}
+#endif
+
+// file_closer initiliazes and returns a FileCloser that wraps the given file.
+FileCloser file_closer(FILE *f);
+
+#ifdef XSTD_IMPLEMENTATION
+FileCloser file_closer(FILE *f) {
+  FileCloser fcloser = {0};
+  file_closer_init(&fcloser, f);
+  return fcloser;
+}
+#endif
+
+#endif
 #ifndef XSTD_IO_READER_H_INCLUDE
 #define XSTD_IO_READER_H_INCLUDE
 
@@ -139,10 +228,8 @@ Allocator *g_libc_allocator = &libc_allocator;
 #include <stdint.h>
 #include <stdio.h>
 
-#ifdef XSTD_IO_READER_IMPLEMENTATION
+#ifdef XSTD_IMPLEMENTATION
 #include <errno.h>
-
-#define XSTD_ALLOC_IMPLEMENTATION
 #endif
 
 
@@ -186,7 +273,7 @@ typedef struct xstd_reader {
 // reader_read calls the read method of the reader.
 void reader_read(Reader *reader, uint8_t *p, size_t p_len, size_t *n, int *err);
 
-#ifdef XSTD_IO_READER_IMPLEMENTATION
+#ifdef XSTD_IMPLEMENTATION
 void reader_read(Reader *reader, uint8_t *p, size_t p_len, size_t *n,
                  int *err) {
   reader->vtable_->read((void *)((uintptr_t)reader + reader->offset_), p, p_len,
@@ -201,7 +288,7 @@ typedef struct {
 } FileReader;
 
 // file_reader_read implements Reader.
-#ifdef XSTD_IO_READER_IMPLEMENTATION
+#ifdef XSTD_IMPLEMENTATION
 static void file_reader_read(void *file, uint8_t *p, size_t p_len, size_t *n,
                              int *error) {
   FILE *f = *(void **)file;
@@ -222,14 +309,14 @@ static void file_reader_read(void *file, uint8_t *p, size_t p_len, size_t *n,
 // FileReader virtual table for Reader interface.
 struct xstd_reader_vtable file_reader_vtable;
 
-#ifdef XSTD_IO_READER_IMPLEMENTATION
+#ifdef XSTD_IMPLEMENTATION
 struct xstd_reader_vtable file_reader_vtable = {.read = &file_reader_read};
 #endif
 
 // file_reader_init initializes the given FileReader.
 void file_reader_init(FileReader *freader, FILE *f);
 
-#ifdef XSTD_IO_READER_IMPLEMENTATION
+#ifdef XSTD_IMPLEMENTATION
 void file_reader_init(FileReader *freader, FILE *f) {
   *freader = (FileReader){0};
   freader->reader.vtable_ = &file_reader_vtable;
@@ -241,7 +328,7 @@ void file_reader_init(FileReader *freader, FILE *f) {
 // file_reader_new allocates, initializes and returns a new FileReader.
 FileReader *file_reader_new(Allocator *allocator, FILE *f);
 
-#ifdef XSTD_IO_READER_IMPLEMENTATION
+#ifdef XSTD_IMPLEMENTATION
 FileReader *file_reader_new(Allocator *allocator, FILE *f) {
   FileReader *freader = alloc_malloc(allocator, sizeof(FileReader));
   file_reader_init(freader, f);
@@ -252,7 +339,7 @@ FileReader *file_reader_new(Allocator *allocator, FILE *f) {
 // file_reader initializes and returns a FileReader that wraps the given file.
 FileReader file_reader(FILE *f);
 
-#ifdef XSTD_IO_READER_IMPLEMENTATION
+#ifdef XSTD_IMPLEMENTATION
 FileReader file_reader(FILE *f) {
   FileReader freader = {0};
   file_reader_init(&freader, f);
@@ -269,10 +356,8 @@ FileReader file_reader(FILE *f) {
 #include <stdint.h>
 #include <stdio.h>
 
-#ifdef XSTD_IO_WRITER_IMPLEMENTATION
+#ifdef XSTD_IMPLEMENTATION
 #include <errno.h>
-
-#define XSTD_ALLOC_IMPLEMENTATION
 #endif
 
 
@@ -295,7 +380,7 @@ typedef struct {
 void writer_write(Writer *writer, uint8_t *p, size_t p_len, size_t *n,
                   int *error);
 
-#ifdef XSTD_IO_WRITER_IMPLEMENTATION
+#ifdef XSTD_IMPLEMENTATION
 void writer_write(Writer *writer, uint8_t *p, size_t p_len, size_t *n,
                   int *error) {
   writer->vtable_->write((void *)((uintptr_t)writer + writer->offset_), p,
@@ -309,7 +394,7 @@ typedef struct {
   FILE *f_;
 } FileWriter;
 
-#ifdef XSTD_IO_WRITER_IMPLEMENTATION
+#ifdef XSTD_IMPLEMENTATION
 static void file_writer_write(void *file, uint8_t *p, size_t p_len, size_t *n,
                               int *error) {
   FILE *f = *(void **)file;
@@ -331,14 +416,14 @@ static void file_writer_write(void *file, uint8_t *p, size_t p_len, size_t *n,
 // FileWriter virtual table for Writer interface.
 struct xstd_writer_vtable file_writer_vtable;
 
-#ifdef XSTD_IO_WRITER_IMPLEMENTATION
+#ifdef XSTD_IMPLEMENTATION
 struct xstd_writer_vtable file_writer_vtable = {.write = &file_writer_write};
 #endif
 
 // file_writer_init initializes the given FileWriter.
 void file_writer_init(FileWriter *fw, FILE *f);
 
-#ifdef XSTD_IO_WRITER_IMPLEMENTATION
+#ifdef XSTD_IMPLEMENTATION
 void file_writer_init(FileWriter *fw, FILE *f) {
   *fw = (FileWriter){0};
   fw->writer.vtable_ = &file_writer_vtable;
@@ -350,7 +435,7 @@ void file_writer_init(FileWriter *fw, FILE *f) {
 // file_writer_new allocates, initializes and returns a new FileWriter.
 FileWriter *file_writer_new(Allocator *allocator, FILE *f);
 
-#ifdef XSTD_IO_WRITER_IMPLEMENTATION
+#ifdef XSTD_IMPLEMENTATION
 FileWriter *file_writer_new(Allocator *allocator, FILE *f) {
   FileWriter *fw = alloc_malloc(allocator, sizeof(FileWriter));
   file_writer_init(fw, f);
@@ -361,11 +446,200 @@ FileWriter *file_writer_new(Allocator *allocator, FILE *f) {
 // file_writer initializes and returns a FileWriter that wraps the given file.
 FileWriter file_writer(FILE *f);
 
-#ifdef XSTD_IO_WRITER_IMPLEMENTATION
+#ifdef XSTD_IMPLEMENTATION
 FileWriter file_writer(FILE *f) {
   FileWriter fw = {0};
   file_writer_init(&fw, f);
   return fw;
+}
+#endif
+
+#endif
+#ifndef XSTD_IO_READ_CLOSER_H_INCLUDE
+#define XSTD_IO_READ_CLOSER_H_INCLUDE
+
+#ifdef XSTD_IMPLEMENTATION
+#include <stddef.h>
+#endif
+
+
+// ReadCloser is the interface that groups the basic Read and Close methods.
+typedef struct {
+  Reader reader;
+  Closer closer;
+} ReadCloser;
+
+// FileReadCloser wraps FILE and implements ReadCloser.
+typedef struct {
+  ReadCloser read_closer;
+  FILE *f_;
+} FileReadCloser;
+
+// file_read_closer_init initializes the given FileReadCloser.
+void file_read_closer_init(FileReadCloser *frw, FILE *f);
+
+#ifdef XSTD_IMPLEMENTATION
+void file_read_closer_init(FileReadCloser *frw, FILE *f) {
+  *frw = (FileReadCloser){0};
+  frw->read_closer.reader.vtable_ = &file_reader_vtable;
+  frw->read_closer.reader.offset_ = offsetof(FileReadCloser, f_);
+
+  frw->read_closer.closer.vtable_ = &file_closer_vtable;
+  frw->read_closer.closer.offset_ =
+      offsetof(FileReadCloser, f_) -
+      offsetof(FileReadCloser, read_closer.closer);
+
+  frw->f_ = f;
+}
+#endif
+
+// file_read_closer allocates and initializes and returns a FileReadCloser that
+// wraps the given file.
+FileReadCloser *file_read_closer_new(Allocator *allocator, FILE *f);
+
+#ifdef XSTD_IMPLEMENTATION
+FileReadCloser *file_read_closer_new(Allocator *allocator, FILE *f) {
+  FileReadCloser *frw = alloc_malloc(allocator, sizeof(FileReadCloser));
+  file_read_closer_init(frw, f);
+  return frw;
+}
+#endif
+
+// file_read_closer initializes and returns a FileReadCloser that wraps the
+// given file.
+FileReadCloser file_read_closer(FILE *f);
+
+#ifdef XSTD_IMPLEMENTATION
+FileReadCloser file_read_closer(FILE *f) {
+  FileReadCloser frw = {0};
+  file_read_closer_init(&frw, f);
+  return frw;
+}
+#endif
+
+#endif
+#ifndef XSTD_IO_READ_WRITER_H_INCLUDE
+#define XSTD_IO_READ_WRITER_H_INCLUDE
+
+#ifdef XSTD_IMPLEMENTATION
+#include <stddef.h>
+#endif
+
+
+// ReadWriter is the interface that groups the basic Read and Write methods.
+typedef struct {
+  Reader reader;
+  Writer writer;
+} ReadWriter;
+
+// FileReadWriter wraps FILE and implements ReadWriter.
+typedef struct {
+  ReadWriter read_writer;
+  FILE *f_;
+} FileReadWriter;
+
+// file_read_writer_init initializes the given FileReadWriter.
+void file_read_writer_init(FileReadWriter *frw, FILE *f);
+
+#ifdef XSTD_IMPLEMENTATION
+void file_read_writer_init(FileReadWriter *frw, FILE *f) {
+  *frw = (FileReadWriter){0};
+  frw->read_writer.reader.vtable_ = &file_reader_vtable;
+  frw->read_writer.reader.offset_ = offsetof(FileReadWriter, f_);
+
+  frw->read_writer.writer.vtable_ = &file_writer_vtable;
+  frw->read_writer.writer.offset_ =
+      offsetof(FileReadWriter, f_) -
+      offsetof(FileReadWriter, read_writer.writer);
+
+  frw->f_ = f;
+}
+#endif
+
+// file_read_writer allocates and initializes and returns a FileReadWriter that
+// wraps the given file.
+FileReadWriter *file_read_writer_new(Allocator *allocator, FILE *f);
+
+#ifdef XSTD_IMPLEMENTATION
+FileReadWriter *file_read_writer_new(Allocator *allocator, FILE *f) {
+  FileReadWriter *frw = alloc_malloc(allocator, sizeof(FileReadWriter));
+  file_read_writer_init(frw, f);
+  return frw;
+}
+#endif
+
+// file_read_writer initializes and returns a FileReadWriter that wraps the
+// given file.
+FileReadWriter file_read_writer(FILE *f);
+
+#ifdef XSTD_IMPLEMENTATION
+FileReadWriter file_read_writer(FILE *f) {
+  FileReadWriter frw = {0};
+  file_read_writer_init(&frw, f);
+  return frw;
+}
+#endif
+
+#endif
+#ifndef XSTD_IO_WRITE_CLOSER_H_INCLUDE
+#define XSTD_IO_WRITE_CLOSER_H_INCLUDE
+
+#ifdef XSTD_IMPLEMENTATION
+#include <stddef.h>
+#endif
+
+
+// WriteCloser is the interface that groups the basic Write and Close methods.
+typedef struct {
+  Writer writer;
+  Closer closer;
+} WriteCloser;
+
+// FileWriteCloser wraps FILE and implements WriteCloser.
+typedef struct {
+  WriteCloser write_closer;
+  FILE *f_;
+} FileWriteCloser;
+
+// file_write_closer_init initializes the given FileWriteCloser.
+void file_write_closer_init(FileWriteCloser *frw, FILE *f);
+
+#ifdef XSTD_IMPLEMENTATION
+void file_write_closer_init(FileWriteCloser *frw, FILE *f) {
+  *frw = (FileWriteCloser){0};
+  frw->write_closer.writer.vtable_ = &file_writer_vtable;
+  frw->write_closer.writer.offset_ = offsetof(FileWriteCloser, f_);
+
+  frw->write_closer.closer.vtable_ = &file_closer_vtable;
+  frw->write_closer.closer.offset_ =
+      offsetof(FileWriteCloser, f_) -
+      offsetof(FileWriteCloser, write_closer.closer);
+
+  frw->f_ = f;
+}
+#endif
+
+// file_write_closer allocates and initializes and returns a FileWriteCloser
+// that wraps the given file.
+FileWriteCloser *file_write_closer_new(Allocator *allocator, FILE *f);
+
+#ifdef XSTD_IMPLEMENTATION
+FileWriteCloser *file_write_closer_new(Allocator *allocator, FILE *f) {
+  FileWriteCloser *frw = alloc_malloc(allocator, sizeof(FileWriteCloser));
+  file_write_closer_init(frw, f);
+  return frw;
+}
+#endif
+
+// file_write_closer initializes and returns a FileWriteCloser that wraps the
+// given file.
+FileWriteCloser file_write_closer(FILE *f);
+
+#ifdef XSTD_IMPLEMENTATION
+FileWriteCloser file_write_closer(FILE *f) {
+  FileWriteCloser frw = {0};
+  file_write_closer_init(&frw, f);
+  return frw;
 }
 #endif
 
@@ -398,7 +672,7 @@ typedef struct xstd_iterator {
 
 void *iter_next(Iterator *);
 
-#ifdef XSTD_ITER_IMPLEMENTATION
+#ifdef XSTD_IMPLEMENTATION
 void *iter_next(Iterator *iter) { return iter->next(iter); }
 #endif
 
@@ -419,7 +693,7 @@ typedef struct xstd_range_iter {
 } RangeIterator;
 
 void *range_iter_next(Iterator *it);
-#ifdef XSTD_ITER_IMPLEMENTATION
+#ifdef XSTD_IMPLEMENTATION
 void *range_iter_next(Iterator *it) {
   RangeIterator *iter = (RangeIterator *)it;
 
@@ -435,7 +709,7 @@ void *range_iter_next(Iterator *it) {
 
 RangeIterator range_iter(int64_t start, int64_t end, int64_t step);
 
-#ifdef XSTD_ITER_IMPLEMENTATION
+#ifdef XSTD_IMPLEMENTATION
 RangeIterator range_iter(int64_t start, int64_t end, int64_t step) {
   RangeIterator iter = {0};
   iter.iterator.next = &range_iter_next;
@@ -453,10 +727,9 @@ RangeIterator range_iter(int64_t start, int64_t end, int64_t step) {
 
 #include <stddef.h>
 
-#ifdef XSTD_ARENA_IMPLEMENTATION
+#ifdef XSTD_IMPLEMENTATION
 #include <assert.h>
 #include <stdint.h>
-#define XSTD_ALLOC_IMPLEMENTATION
 #endif
 
 
@@ -484,7 +757,7 @@ struct xstd_arena {
 void arena_allocator_init(ArenaAllocator *arena, Allocator *parent,
                           size_t arena_size);
 
-#ifdef XSTD_ARENA_IMPLEMENTATION
+#ifdef XSTD_IMPLEMENTATION
 static void *arena_calloc(void *b, size_t nmemb, size_t size) {
   struct xstd_arena_allocator_body *arena_body =
       (struct xstd_arena_allocator_body *)b;
@@ -581,7 +854,7 @@ void arena_allocator_init(ArenaAllocator *arena, Allocator *parent,
 
 ArenaAllocator arena_allocator(Allocator *parent, size_t arena_size);
 
-#ifdef XSTD_ARENA_IMPLEMENTATION
+#ifdef XSTD_IMPLEMENTATION
 ArenaAllocator arena_allocator(Allocator *parent, size_t arena_size) {
   ArenaAllocator alloc = {0};
   arena_allocator_init(&alloc, parent, arena_size);
@@ -591,7 +864,7 @@ ArenaAllocator arena_allocator(Allocator *parent, size_t arena_size) {
 
 void arena_alloc_reset(ArenaAllocator *arena);
 
-#ifdef XSTD_ARENA_IMPLEMENTATION
+#ifdef XSTD_IMPLEMENTATION
 void arena_alloc_reset(ArenaAllocator *arena_alloc) {
   struct xstd_arena **arena = &arena_alloc->body_.arena_list_;
   while (*arena != NULL) {
@@ -615,12 +888,10 @@ void arena_alloc_reset(ArenaAllocator *arena_alloc) {
 #include <stdbool.h>
 #include <stddef.h>
 
-#ifdef XSTD_VEC_IMPLEMENTATION
+#ifdef XSTD_IMPLEMENTATION
 #include <assert.h>
 #include <stdint.h>
 #include <string.h>
-
-#define XSTD_ALLOC_IMPLEMENTATION
 #endif
 
 
@@ -670,7 +941,7 @@ struct xstd_vector {
 #define headerof_vec(vecptr)                                                   \
   ((struct xstd_vector *)((uintptr_t)vecptr - sizeof(struct xstd_vector)))
 
-#ifdef XSTD_VEC_IMPLEMENTATION
+#ifdef XSTD_IMPLEMENTATION
 static size_t sizeof_vector(struct xstd_vector *v) {
   return sizeof(struct xstd_vector) + v->cap_ * v->elem_size_;
 }
@@ -681,7 +952,7 @@ static size_t sizeof_vector(struct xstd_vector *v) {
 // the vector.
 Vec vec_new(Allocator *allocator, size_t cap, size_t elem_size);
 
-#ifdef XSTD_VEC_IMPLEMENTATION
+#ifdef XSTD_IMPLEMENTATION
 Vec vec_new(Allocator *allocator, size_t cap, size_t elem_size) {
   size_t header = sizeof(struct xstd_vector);
   size_t body = cap * elem_size;
@@ -702,7 +973,7 @@ Vec vec_new(Allocator *allocator, size_t cap, size_t elem_size) {
 // vec_clone creates a clone of the given vector and returns it.
 Vec vec_clone(const Vec);
 
-#ifdef XSTD_VEC_IMPLEMENTATION
+#ifdef XSTD_IMPLEMENTATION
 Vec vec_clone(const Vec vec) {
   assert(vec != NULL);
 
@@ -722,7 +993,7 @@ Vec vec_clone(const Vec vec) {
 // vec_len returns the current len of the vector.
 size_t vec_len(const Vec);
 
-#ifdef XSTD_VEC_IMPLEMENTATION
+#ifdef XSTD_IMPLEMENTATION
 size_t vec_len(const Vec vec) {
   assert(vec != NULL);
 
@@ -733,7 +1004,7 @@ size_t vec_len(const Vec vec) {
 // vec_cap returns the current capacity of the vector.
 size_t vec_cap(const Vec);
 
-#ifdef XSTD_VEC_IMPLEMENTATION
+#ifdef XSTD_IMPLEMENTATION
 size_t vec_cap(const Vec vec) {
   assert(vec != NULL);
 
@@ -744,7 +1015,7 @@ size_t vec_cap(const Vec vec) {
 // vec_isfull returns true if the vector is full.
 bool vec_isfull(const Vec);
 
-#ifdef XSTD_VEC_IMPLEMENTATION
+#ifdef XSTD_IMPLEMENTATION
 bool vec_isfull(const Vec vec) {
   assert(vec != NULL);
 
@@ -755,7 +1026,7 @@ bool vec_isfull(const Vec vec) {
 // vec_isempty returns true if the vector size is 0.
 bool vec_isempty(const Vec);
 
-#ifdef XSTD_VEC_IMPLEMENTATION
+#ifdef XSTD_IMPLEMENTATION
 bool vec_isempty(const Vec vec) {
   assert(vec != NULL);
 
@@ -769,7 +1040,7 @@ bool vec_isempty(const Vec vec) {
 // return type.
 void *vec_push_(Vec *);
 
-#ifdef XSTD_VEC_IMPLEMENTATION
+#ifdef XSTD_IMPLEMENTATION
 void *vec_push_(void **vec) {
   assert(vec != NULL);
   assert(*vec != NULL);
@@ -800,7 +1071,7 @@ void *vec_push_(void **vec) {
 // if not null.
 void vec_pop(Vec, void *);
 
-#ifdef XSTD_VEC_IMPLEMENTATION
+#ifdef XSTD_IMPLEMENTATION
 
 void vec_pop(Vec vec, void *popped) {
   assert(vec != NULL);
@@ -821,7 +1092,7 @@ void vec_pop(Vec vec, void *popped) {
 // if not null. Remaining elements are copied to their index - 1.
 void vec_shift(Vec, void *);
 
-#ifdef XSTD_VEC_IMPLEMENTATION
+#ifdef XSTD_IMPLEMENTATION
 void vec_shift(Vec vec, void *shifted) {
   assert(vec != NULL);
 
@@ -846,7 +1117,7 @@ void vec_shift(Vec vec, void *shifted) {
 // return type.
 void *vec_unshift_(Vec *);
 
-#ifdef XSTD_VEC_IMPLEMENTATION
+#ifdef XSTD_IMPLEMENTATION
 
 void *vec_unshift_(void **vec) {
   assert(vec != NULL);
@@ -882,7 +1153,7 @@ void *vec_unshift_(void **vec) {
 // vec_free free the given vector.
 void vec_free(const Vec);
 
-#ifdef XSTD_VEC_IMPLEMENTATION
+#ifdef XSTD_IMPLEMENTATION
 void vec_free(Vec vec) {
   assert(vec != NULL);
 
@@ -910,7 +1181,7 @@ typedef struct {
 // vec_iter_next implements Iterator interface for VecIterator.
 void *vec_iter_next(Iterator *it);
 
-#ifdef XSTD_VEC_IMPLEMENTATION
+#ifdef XSTD_IMPLEMENTATION
 void *vec_iter_next(Iterator *it) {
   if (it == NULL)
     return NULL;
@@ -932,7 +1203,7 @@ void *vec_iter_next(Iterator *it) {
 // vec_iter creates a VecIterator that wraps the given vector.
 VecIterator vec_iter(const Vec vec);
 
-#ifdef XSTD_VEC_IMPLEMENTATION
+#ifdef XSTD_IMPLEMENTATION
 VecIterator vec_iter(const Vec vec) {
   VecIterator iterator = {0};
   iterator.iterator_.next = &vec_iter_next;
@@ -947,9 +1218,7 @@ VecIterator vec_iter(const Vec vec) {
 #ifndef XSTD_LIST_H_INCLUDE
 #define XSTD_LIST_H_INCLUDE
 
-#ifdef XSTD_LIST_IMPLEMENTATION
-#define XSTD_ITER_IMPLEMENTATION
-
+#ifdef XSTD_IMPLEMENTATION
 #include <stddef.h>
 #include <stdint.h>
 #endif
@@ -972,7 +1241,7 @@ VecIterator vec_iter(const Vec vec) {
 // An handy list_prepend macro exists so you don't have to cast arguments.
 void list_prepend_(void **list, void *element);
 
-#ifdef XSTD_LIST_IMPLEMENTATION
+#ifdef XSTD_IMPLEMENTATION
 void list_prepend_(void **list, void *element) {
   void **element_next = (void **)element;
   *element_next = *list;
@@ -984,7 +1253,7 @@ void list_prepend_(void **list, void *element) {
 
 void *list_next_(void *list);
 
-#ifdef XSTD_LIST_IMPLEMENTATION
+#ifdef XSTD_IMPLEMENTATION
 void *list_next_(void *list) {
   if (list == NULL)
     return NULL;
@@ -1002,7 +1271,7 @@ void *list_next_(void *list) {
 // An handy list_remove macro exists so you don't have to cast arguments.
 void list_remove_(void *list, void *element);
 
-#ifdef XSTD_LIST_IMPLEMENTATION
+#ifdef XSTD_IMPLEMENTATION
 void list_remove_(void *list, void *element) {
   if (element == NULL)
     return;
@@ -1023,7 +1292,7 @@ void list_remove_(void *list, void *element) {
 // next element.
 void *list_remove_next_(void *list);
 
-#ifdef XSTD_LIST_IMPLEMENTATION
+#ifdef XSTD_IMPLEMENTATION
 void *list_remove_next_(void *list) {
   void **list_next = (void **)list;
   void *next = *list_next;
@@ -1035,7 +1304,7 @@ void *list_remove_next_(void *list) {
 
 void *list_iter_next(Iterator *iterator);
 
-#ifdef XSTD_LIST_IMPLEMENTATION
+#ifdef XSTD_IMPLEMENTATION
 void *list_iter_next(Iterator *iterator) {
   // 2nd field of list iterator (the list itself).
   void **iterator_list_field_ptr =

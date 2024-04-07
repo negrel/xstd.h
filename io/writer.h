@@ -6,13 +6,11 @@
 #include <stdint.h>
 #include <stdio.h>
 
-#ifdef XSTD_IO_WRITER_IMPLEMENTATION
+#ifdef XSTD_IMPLEMENTATION
 #include <errno.h>
-
-#define XSTD_ALLOC_IMPLEMENTATION
 #endif
 
-#include "xstd_alloc.h"
+#include "alloc.h"
 
 struct xstd_writer_vtable {
   void (*write)(void *writer, uint8_t *p, size_t p_len, size_t *n, int *err);
@@ -33,7 +31,7 @@ typedef struct {
 void writer_write(Writer *writer, uint8_t *p, size_t p_len, size_t *n,
                   int *error);
 
-#ifdef XSTD_IO_WRITER_IMPLEMENTATION
+#ifdef XSTD_IMPLEMENTATION
 void writer_write(Writer *writer, uint8_t *p, size_t p_len, size_t *n,
                   int *error) {
   writer->vtable_->write((void *)((uintptr_t)writer + writer->offset_), p,
@@ -47,7 +45,7 @@ typedef struct {
   FILE *f_;
 } FileWriter;
 
-#ifdef XSTD_IO_WRITER_IMPLEMENTATION
+#ifdef XSTD_IMPLEMENTATION
 static void file_writer_write(void *file, uint8_t *p, size_t p_len, size_t *n,
                               int *error) {
   FILE *f = *(void **)file;
@@ -69,14 +67,14 @@ static void file_writer_write(void *file, uint8_t *p, size_t p_len, size_t *n,
 // FileWriter virtual table for Writer interface.
 struct xstd_writer_vtable file_writer_vtable;
 
-#ifdef XSTD_IO_WRITER_IMPLEMENTATION
+#ifdef XSTD_IMPLEMENTATION
 struct xstd_writer_vtable file_writer_vtable = {.write = &file_writer_write};
 #endif
 
 // file_writer_init initializes the given FileWriter.
 void file_writer_init(FileWriter *fw, FILE *f);
 
-#ifdef XSTD_IO_WRITER_IMPLEMENTATION
+#ifdef XSTD_IMPLEMENTATION
 void file_writer_init(FileWriter *fw, FILE *f) {
   *fw = (FileWriter){0};
   fw->writer.vtable_ = &file_writer_vtable;
@@ -88,7 +86,7 @@ void file_writer_init(FileWriter *fw, FILE *f) {
 // file_writer_new allocates, initializes and returns a new FileWriter.
 FileWriter *file_writer_new(Allocator *allocator, FILE *f);
 
-#ifdef XSTD_IO_WRITER_IMPLEMENTATION
+#ifdef XSTD_IMPLEMENTATION
 FileWriter *file_writer_new(Allocator *allocator, FILE *f) {
   FileWriter *fw = alloc_malloc(allocator, sizeof(FileWriter));
   file_writer_init(fw, f);
@@ -99,7 +97,7 @@ FileWriter *file_writer_new(Allocator *allocator, FILE *f) {
 // file_writer initializes and returns a FileWriter that wraps the given file.
 FileWriter file_writer(FILE *f);
 
-#ifdef XSTD_IO_WRITER_IMPLEMENTATION
+#ifdef XSTD_IMPLEMENTATION
 FileWriter file_writer(FILE *f) {
   FileWriter fw = {0};
   file_writer_init(&fw, f);

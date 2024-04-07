@@ -3,10 +3,9 @@
 #include <stdlib.h>
 
 #include <check.h>
-#include <string.h>
 
-#define XSTD_IO_READ_WRITER_IMPLEMENTATION
-#include "xstd_io_read_writer.h"
+#define XSTD_IMPLEMENTATION
+#include "io/read_writer.h"
 
 START_TEST(test_file_read_writer_read) {
   FILE *f = fopen(__FILE__, "r");
@@ -27,6 +26,8 @@ START_TEST(test_file_read_writer_read) {
   }
 
   ck_assert_int_eq(error, EOF);
+
+  fclose(f);
 }
 END_TEST
 

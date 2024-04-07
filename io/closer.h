@@ -4,15 +4,13 @@
 #include <stdbool.h>
 #include <stdio.h>
 
-#ifdef XSTD_IO_CLOSER_IMPLEMENTATION
+#ifdef XSTD_IMPLEMENTATION
 #include <errno.h>
 #include <stddef.h>
 #include <stdint.h>
-
-#define XSTD_ALLOC_IMPLEMENTATION
 #endif
 
-#include "xstd_alloc.h"
+#include "alloc.h"
 
 struct xstd_closer_vtable {
   void (*close)(void *closer, int *error);
@@ -29,7 +27,7 @@ typedef struct {
 // closer_close calls the close method of the closer.
 void closer_close(Closer *closer, int *error);
 
-#ifdef XSTD_IO_CLOSER_IMPLEMENTATION
+#ifdef XSTD_IMPLEMENTATION
 void closer_close(Closer *closer, int *error) {
   closer->vtable_->close((void *)((uintptr_t)closer + closer->offset_), error);
 }
@@ -41,7 +39,7 @@ typedef struct {
   FILE *f_;
 } FileCloser;
 
-#ifdef XSTD_IO_CLOSER_IMPLEMENTATION
+#ifdef XSTD_IMPLEMENTATION
 static void file_closer_close(void *file, int *error) {
   FILE *f = *(void **)file;
   if (!fclose(f))
@@ -51,14 +49,14 @@ static void file_closer_close(void *file, int *error) {
 
 struct xstd_closer_vtable file_closer_vtable;
 
-#ifdef XSTD_IO_CLOSER_IMPLEMENTATION
+#ifdef XSTD_IMPLEMENTATION
 struct xstd_closer_vtable file_closer_vtable = {.close = &file_closer_close};
 #endif
 
 // file_closer_init initializes the given FileCloser.
 void file_closer_init(FileCloser *fcloser, FILE *f);
 
-#ifdef XSTD_IO_CLOSER_IMPLEMENTATION
+#ifdef XSTD_IMPLEMENTATION
 void file_closer_init(FileCloser *fcloser, FILE *f) {
   *fcloser = (FileCloser){0};
   fcloser->closer.vtable_ = &file_closer_vtable;
@@ -70,7 +68,7 @@ void file_closer_init(FileCloser *fcloser, FILE *f) {
 // file_closer_new allocates, initiliazes and returns a new FileCloser.
 FileCloser *file_closer_new(Allocator *allocator, FILE *f);
 
-#ifdef XSTD_IO_CLOSER_IMPLEMENTATION
+#ifdef XSTD_IMPLEMENTATION
 FileCloser *file_closer_new(Allocator *allocator, FILE *f) {
   FileCloser *fcloser = alloc_malloc(allocator, sizeof(FileCloser));
   file_closer_init(fcloser, f);
@@ -81,7 +79,7 @@ FileCloser *file_closer_new(Allocator *allocator, FILE *f) {
 // file_closer initiliazes and returns a FileCloser that wraps the given file.
 FileCloser file_closer(FILE *f);
 
-#ifdef XSTD_IO_CLOSER_IMPLEMENTATION
+#ifdef XSTD_IMPLEMENTATION
 FileCloser file_closer(FILE *f) {
   FileCloser fcloser = {0};
   file_closer_init(&fcloser, f);

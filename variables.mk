@@ -1,8 +1,8 @@
 INC_DIR := $$PWD
 INCS := $(shell find $(INC_DIR) -regex '.+\.h')
 
-BUILD_DIR ?= ./build
-TEST_DIR ?= ./tests
+BUILD_DIR ?= build
+TEST_DIR ?= tests
 
 CC := clang
 CFLAGS ?=

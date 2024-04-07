@@ -6,7 +6,7 @@
 
 #include <stddef.h>
 
-#ifdef XSTD_ALLOC_IMPLEMENTATION
+#ifdef XSTD_IMPLEMENTATION
 #include <assert.h>
 #include <stdint.h>
 #include <stdlib.h>
@@ -29,7 +29,7 @@ typedef struct {
 // memory. The memory is not initialized.
 void *alloc_malloc(Allocator *, size_t);
 
-#ifdef XSTD_ALLOC_IMPLEMENTATION
+#ifdef XSTD_IMPLEMENTATION
 void *alloc_malloc(Allocator *allocator, size_t size) {
   void *ptr = allocator->vtable_->malloc(
       (void *)((uintptr_t)allocator + allocator->offset_), size);
@@ -42,7 +42,7 @@ void *alloc_malloc(Allocator *allocator, size_t size) {
 // returned by a previous call to malloc() or related functions.
 void alloc_free(Allocator *allocator, void *ptr);
 
-#ifdef XSTD_ALLOC_IMPLEMENTATION
+#ifdef XSTD_IMPLEMENTATION
 void alloc_free(Allocator *allocator, void *ptr) {
   allocator->vtable_->free((void *)((uintptr_t)allocator + allocator->offset_),
                            ptr);
@@ -54,7 +54,7 @@ void alloc_free(Allocator *allocator, void *ptr) {
 // to zero.
 void *alloc_calloc(Allocator *allocator, size_t nmemb, size_t size);
 
-#ifdef XSTD_ALLOC_IMPLEMENTATION
+#ifdef XSTD_IMPLEMENTATION
 void *alloc_calloc(Allocator *allocator, size_t nmemb, size_t size) {
   void *ptr = allocator->vtable_->calloc(
       (void *)((uintptr_t)allocator + allocator->offset_), nmemb, size);
@@ -70,7 +70,7 @@ void *alloc_calloc(Allocator *allocator, size_t nmemb, size_t size) {
 // initialized.
 void *alloc_realloc(Allocator *allocator, void *ptr, size_t newsize);
 
-#ifdef XSTD_ALLOC_IMPLEMENTATION
+#ifdef XSTD_IMPLEMENTATION
 void *alloc_realloc(Allocator *allocator, void *ptr, size_t newsize) {
   ptr = allocator->vtable_->realloc(
       (void *)((uintptr_t)allocator + allocator->offset_), ptr, newsize);
@@ -81,7 +81,7 @@ void *alloc_realloc(Allocator *allocator, void *ptr, size_t newsize) {
 
 Allocator *g_libc_allocator;
 
-#ifdef XSTD_ALLOC_IMPLEMENTATION
+#ifdef XSTD_IMPLEMENTATION
 static void *libc_malloc(void *alloc, size_t size) {
   (void)alloc;
   return malloc(size);

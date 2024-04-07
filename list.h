@@ -1,15 +1,13 @@
 #ifndef XSTD_LIST_H_INCLUDE
 #define XSTD_LIST_H_INCLUDE
 
-#ifdef XSTD_LIST_IMPLEMENTATION
-#define XSTD_ITER_IMPLEMENTATION
-
+#ifdef XSTD_IMPLEMENTATION
 #include <stddef.h>
 #include <stdint.h>
 #endif
 
-#include "xstd_internal.h"
-#include "xstd_iter.h"
+#include "internal.h"
+#include "iter.h"
 
 // typedef a List structure with the given name and of the given type.
 #define typedef_list(type, name)                                               \
@@ -28,7 +26,7 @@
 // An handy list_prepend macro exists so you don't have to cast arguments.
 void list_prepend_(void **list, void *element);
 
-#ifdef XSTD_LIST_IMPLEMENTATION
+#ifdef XSTD_IMPLEMENTATION
 void list_prepend_(void **list, void *element) {
   void **element_next = (void **)element;
   *element_next = *list;
@@ -40,7 +38,7 @@ void list_prepend_(void **list, void *element) {
 
 void *list_next_(void *list);
 
-#ifdef XSTD_LIST_IMPLEMENTATION
+#ifdef XSTD_IMPLEMENTATION
 void *list_next_(void *list) {
   if (list == NULL)
     return NULL;
@@ -58,7 +56,7 @@ void *list_next_(void *list) {
 // An handy list_remove macro exists so you don't have to cast arguments.
 void list_remove_(void *list, void *element);
 
-#ifdef XSTD_LIST_IMPLEMENTATION
+#ifdef XSTD_IMPLEMENTATION
 void list_remove_(void *list, void *element) {
   if (element == NULL)
     return;
@@ -79,7 +77,7 @@ void list_remove_(void *list, void *element) {
 // next element.
 void *list_remove_next_(void *list);
 
-#ifdef XSTD_LIST_IMPLEMENTATION
+#ifdef XSTD_IMPLEMENTATION
 void *list_remove_next_(void *list) {
   void **list_next = (void **)list;
   void *next = *list_next;
@@ -91,7 +89,7 @@ void *list_remove_next_(void *list) {
 
 void *list_iter_next(Iterator *iterator);
 
-#ifdef XSTD_LIST_IMPLEMENTATION
+#ifdef XSTD_IMPLEMENTATION
 void *list_iter_next(Iterator *iterator) {
   // 2nd field of list iterator (the list itself).
   void **iterator_list_field_ptr =

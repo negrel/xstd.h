@@ -4,8 +4,8 @@
 
 #include <check.h>
 
-#define XSTD_IO_READER_IMPLEMENTATION
-#include "xstd_io_reader.h"
+#define XSTD_IMPLEMENTATION
+#include "io/reader.h"
 
 START_TEST(test_file_reader) {
   FILE *f = fopen(__FILE__, "r");
@@ -26,6 +26,8 @@ START_TEST(test_file_reader) {
   }
 
   ck_assert_int_eq(error, EOF);
+
+  fclose(f);
 }
 END_TEST
 

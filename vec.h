@@ -7,17 +7,15 @@
 #include <stdbool.h>
 #include <stddef.h>
 
-#ifdef XSTD_VEC_IMPLEMENTATION
+#ifdef XSTD_IMPLEMENTATION
 #include <assert.h>
 #include <stdint.h>
 #include <string.h>
-
-#define XSTD_ALLOC_IMPLEMENTATION
 #endif
 
-#include "xstd_alloc.h"
-#include "xstd_internal.h"
-#include "xstd_iter.h"
+#include "alloc.h"
+#include "internal.h"
+#include "iter.h"
 
 typedef void *Vec;
 
@@ -65,7 +63,7 @@ struct xstd_vector {
 #define headerof_vec(vecptr)                                                   \
   ((struct xstd_vector *)((uintptr_t)vecptr - sizeof(struct xstd_vector)))
 
-#ifdef XSTD_VEC_IMPLEMENTATION
+#ifdef XSTD_IMPLEMENTATION
 static size_t sizeof_vector(struct xstd_vector *v) {
   return sizeof(struct xstd_vector) + v->cap_ * v->elem_size_;
 }
@@ -76,7 +74,7 @@ static size_t sizeof_vector(struct xstd_vector *v) {
 // the vector.
 Vec vec_new(Allocator *allocator, size_t cap, size_t elem_size);
 
-#ifdef XSTD_VEC_IMPLEMENTATION
+#ifdef XSTD_IMPLEMENTATION
 Vec vec_new(Allocator *allocator, size_t cap, size_t elem_size) {
   size_t header = sizeof(struct xstd_vector);
   size_t body = cap * elem_size;
@@ -97,7 +95,7 @@ Vec vec_new(Allocator *allocator, size_t cap, size_t elem_size) {
 // vec_clone creates a clone of the given vector and returns it.
 Vec vec_clone(const Vec);
 
-#ifdef XSTD_VEC_IMPLEMENTATION
+#ifdef XSTD_IMPLEMENTATION
 Vec vec_clone(const Vec vec) {
   assert(vec != NULL);
 
@@ -117,7 +115,7 @@ Vec vec_clone(const Vec vec) {
 // vec_len returns the current len of the vector.
 size_t vec_len(const Vec);
 
-#ifdef XSTD_VEC_IMPLEMENTATION
+#ifdef XSTD_IMPLEMENTATION
 size_t vec_len(const Vec vec) {
   assert(vec != NULL);
 
@@ -128,7 +126,7 @@ size_t vec_len(const Vec vec) {
 // vec_cap returns the current capacity of the vector.
 size_t vec_cap(const Vec);
 
-#ifdef XSTD_VEC_IMPLEMENTATION
+#ifdef XSTD_IMPLEMENTATION
 size_t vec_cap(const Vec vec) {
   assert(vec != NULL);
 
@@ -139,7 +137,7 @@ size_t vec_cap(const Vec vec) {
 // vec_isfull returns true if the vector is full.
 bool vec_isfull(const Vec);
 
-#ifdef XSTD_VEC_IMPLEMENTATION
+#ifdef XSTD_IMPLEMENTATION
 bool vec_isfull(const Vec vec) {
   assert(vec != NULL);
 
@@ -150,7 +148,7 @@ bool vec_isfull(const Vec vec) {
 // vec_isempty returns true if the vector size is 0.
 bool vec_isempty(const Vec);
 
-#ifdef XSTD_VEC_IMPLEMENTATION
+#ifdef XSTD_IMPLEMENTATION
 bool vec_isempty(const Vec vec) {
   assert(vec != NULL);
 
@@ -164,7 +162,7 @@ bool vec_isempty(const Vec vec) {
 // return type.
 void *vec_push_(Vec *);
 
-#ifdef XSTD_VEC_IMPLEMENTATION
+#ifdef XSTD_IMPLEMENTATION
 void *vec_push_(void **vec) {
   assert(vec != NULL);
   assert(*vec != NULL);
@@ -195,7 +193,7 @@ void *vec_push_(void **vec) {
 // if not null.
 void vec_pop(Vec, void *);
 
-#ifdef XSTD_VEC_IMPLEMENTATION
+#ifdef XSTD_IMPLEMENTATION
 
 void vec_pop(Vec vec, void *popped) {
   assert(vec != NULL);
@@ -216,7 +214,7 @@ void vec_pop(Vec vec, void *popped) {
 // if not null. Remaining elements are copied to their index - 1.
 void vec_shift(Vec, void *);
 
-#ifdef XSTD_VEC_IMPLEMENTATION
+#ifdef XSTD_IMPLEMENTATION
 void vec_shift(Vec vec, void *shifted) {
   assert(vec != NULL);
 
@@ -241,7 +239,7 @@ void vec_shift(Vec vec, void *shifted) {
 // return type.
 void *vec_unshift_(Vec *);
 
-#ifdef XSTD_VEC_IMPLEMENTATION
+#ifdef XSTD_IMPLEMENTATION
 
 void *vec_unshift_(void **vec) {
   assert(vec != NULL);
@@ -277,7 +275,7 @@ void *vec_unshift_(void **vec) {
 // vec_free free the given vector.
 void vec_free(const Vec);
 
-#ifdef XSTD_VEC_IMPLEMENTATION
+#ifdef XSTD_IMPLEMENTATION
 void vec_free(Vec vec) {
   assert(vec != NULL);
 
@@ -305,7 +303,7 @@ typedef struct {
 // vec_iter_next implements Iterator interface for VecIterator.
 void *vec_iter_next(Iterator *it);
 
-#ifdef XSTD_VEC_IMPLEMENTATION
+#ifdef XSTD_IMPLEMENTATION
 void *vec_iter_next(Iterator *it) {
   if (it == NULL)
     return NULL;
@@ -327,7 +325,7 @@ void *vec_iter_next(Iterator *it) {
 // vec_iter creates a VecIterator that wraps the given vector.
 VecIterator vec_iter(const Vec vec);
 
-#ifdef XSTD_VEC_IMPLEMENTATION
+#ifdef XSTD_IMPLEMENTATION
 VecIterator vec_iter(const Vec vec) {
   VecIterator iterator = {0};
   iterator.iterator_.next = &vec_iter_next;

@@ -1,8 +1,8 @@
 #include <check.h>
 #include <stdlib.h>
 
-#define XSTD_ITER_IMPLEMENTATION
-#include "xstd_iter.h"
+#define XSTD_IMPLEMENTATION
+#include "iter.h"
 
 START_TEST(test_range_iter) {
   // Simple iteration.

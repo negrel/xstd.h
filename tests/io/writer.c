@@ -4,8 +4,8 @@
 
 #include <check.h>
 
-#define XSTD_IO_WRITER_IMPLEMENTATION
-#include "xstd_io_writer.h"
+#define XSTD_IMPLEMENTATION
+#include "io/writer.h"
 
 START_TEST(test_file_writer) {
   FILE *f = fopen("/dev/null", "w");
@@ -27,6 +27,8 @@ START_TEST(test_file_writer) {
   writer_write(writer, buf, 128, &write, &error);
   ck_assert_int_eq(error, 0);
   ck_assert_int_eq(write, 128);
+
+  fclose(f);
 }
 END_TEST
 

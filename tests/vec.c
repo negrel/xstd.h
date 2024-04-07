@@ -2,14 +2,10 @@
 
 #include <check.h>
 
-#define XSTD_ALLOC_IMPLEMENTATION
-#include "xstd_alloc.h"
-
-#define XSTD_ITER_IMPLEMENTATION
-#include "xstd_iter.h"
-
-#define XSTD_VEC_IMPLEMENTATION
-#include "xstd_vec.h"
+#define XSTD_IMPLEMENTATION
+#include "alloc.h"
+#include "iter.h"
+#include "vec.h"
 
 START_TEST(test_vec_new) {
   int *vec = vec_new(g_libc_allocator, 10, sizeof(int));

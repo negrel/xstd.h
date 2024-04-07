@@ -6,13 +6,11 @@
 #include <stdint.h>
 #include <stdio.h>
 
-#ifdef XSTD_IO_READER_IMPLEMENTATION
+#ifdef XSTD_IMPLEMENTATION
 #include <errno.h>
-
-#define XSTD_ALLOC_IMPLEMENTATION
 #endif
 
-#include "xstd_alloc.h"
+#include "alloc.h"
 
 struct xstd_reader_vtable {
   void (*read)(void *reader, uint8_t *p, size_t p_len, size_t *n, int *err);
@@ -54,7 +52,7 @@ typedef struct xstd_reader {
 // reader_read calls the read method of the reader.
 void reader_read(Reader *reader, uint8_t *p, size_t p_len, size_t *n, int *err);
 
-#ifdef XSTD_IO_READER_IMPLEMENTATION
+#ifdef XSTD_IMPLEMENTATION
 void reader_read(Reader *reader, uint8_t *p, size_t p_len, size_t *n,
                  int *err) {
   reader->vtable_->read((void *)((uintptr_t)reader + reader->offset_), p, p_len,
@@ -69,7 +67,7 @@ typedef struct {
 } FileReader;
 
 // file_reader_read implements Reader.
-#ifdef XSTD_IO_READER_IMPLEMENTATION
+#ifdef XSTD_IMPLEMENTATION
 static void file_reader_read(void *file, uint8_t *p, size_t p_len, size_t *n,
                              int *error) {
   FILE *f = *(void **)file;
@@ -90,14 +88,14 @@ static void file_reader_read(void *file, uint8_t *p, size_t p_len, size_t *n,
 // FileReader virtual table for Reader interface.
 struct xstd_reader_vtable file_reader_vtable;
 
-#ifdef XSTD_IO_READER_IMPLEMENTATION
+#ifdef XSTD_IMPLEMENTATION
 struct xstd_reader_vtable file_reader_vtable = {.read = &file_reader_read};
 #endif
 
 // file_reader_init initializes the given FileReader.
 void file_reader_init(FileReader *freader, FILE *f);
 
-#ifdef XSTD_IO_READER_IMPLEMENTATION
+#ifdef XSTD_IMPLEMENTATION
 void file_reader_init(FileReader *freader, FILE *f) {
   *freader = (FileReader){0};
   freader->reader.vtable_ = &file_reader_vtable;
@@ -109,7 +107,7 @@ void file_reader_init(FileReader *freader, FILE *f) {
 // file_reader_new allocates, initializes and returns a new FileReader.
 FileReader *file_reader_new(Allocator *allocator, FILE *f);
 
-#ifdef XSTD_IO_READER_IMPLEMENTATION
+#ifdef XSTD_IMPLEMENTATION
 FileReader *file_reader_new(Allocator *allocator, FILE *f) {
   FileReader *freader = alloc_malloc(allocator, sizeof(FileReader));
   file_reader_init(freader, f);
@@ -120,7 +118,7 @@ FileReader *file_reader_new(Allocator *allocator, FILE *f) {
 // file_reader initializes and returns a FileReader that wraps the given file.
 FileReader file_reader(FILE *f);
 
-#ifdef XSTD_IO_READER_IMPLEMENTATION
+#ifdef XSTD_IMPLEMENTATION
 FileReader file_reader(FILE *f) {
   FileReader freader = {0};
   file_reader_init(&freader, f);

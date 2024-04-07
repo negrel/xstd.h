@@ -2,8 +2,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-#define XSTD_IO_CLOSER_IMPLEMENTATION
-#include "xstd_io_closer.h"
+#define XSTD_IMPLEMENTATION
+#include "io/closer.h"
 
 START_TEST(test_file_closer) {
   FILE *f = fopen(__FILE__, "r");

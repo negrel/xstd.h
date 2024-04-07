@@ -2,10 +2,9 @@
 
 #include <check.h>
 
-#define XSTD_ARENA_IMPLEMENTATION
-#include "xstd_arena.h"
-
-#include "xstd_alloc.h"
+#define XSTD_IMPLEMENTATION
+#include "alloc.h"
+#include "arena.h"
 
 START_TEST(test_arena_malloc) {
   ArenaAllocator arena = {0};

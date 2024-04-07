@@ -3,13 +3,12 @@
 
 #include <stddef.h>
 
-#ifdef XSTD_ARENA_IMPLEMENTATION
+#ifdef XSTD_IMPLEMENTATION
 #include <assert.h>
 #include <stdint.h>
-#define XSTD_ALLOC_IMPLEMENTATION
 #endif
 
-#include "xstd_alloc.h"
+#include "alloc.h"
 
 struct xstd_arena_allocator_body {
   Allocator *parent_allocator_;
@@ -35,7 +34,7 @@ struct xstd_arena {
 void arena_allocator_init(ArenaAllocator *arena, Allocator *parent,
                           size_t arena_size);
 
-#ifdef XSTD_ARENA_IMPLEMENTATION
+#ifdef XSTD_IMPLEMENTATION
 static void *arena_calloc(void *b, size_t nmemb, size_t size) {
   struct xstd_arena_allocator_body *arena_body =
       (struct xstd_arena_allocator_body *)b;
@@ -132,7 +131,7 @@ void arena_allocator_init(ArenaAllocator *arena, Allocator *parent,
 
 ArenaAllocator arena_allocator(Allocator *parent, size_t arena_size);
 
-#ifdef XSTD_ARENA_IMPLEMENTATION
+#ifdef XSTD_IMPLEMENTATION
 ArenaAllocator arena_allocator(Allocator *parent, size_t arena_size) {
   ArenaAllocator alloc = {0};
   arena_allocator_init(&alloc, parent, arena_size);
@@ -142,7 +141,7 @@ ArenaAllocator arena_allocator(Allocator *parent, size_t arena_size) {
 
 void arena_alloc_reset(ArenaAllocator *arena);
 
-#ifdef XSTD_ARENA_IMPLEMENTATION
+#ifdef XSTD_IMPLEMENTATION
 void arena_alloc_reset(ArenaAllocator *arena_alloc) {
   struct xstd_arena **arena = &arena_alloc->body_.arena_list_;
   while (*arena != NULL) {
