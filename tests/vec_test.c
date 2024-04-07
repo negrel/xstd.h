@@ -12,10 +12,7 @@
 #include "xstd_vec.h"
 
 START_TEST(test_vec_new) {
-  Allocator alloc = {0};
-  libc_alloc_init(&alloc);
-
-  int *vec = vec_new(&alloc, 10, sizeof(int));
+  int *vec = vec_new(g_libc_allocator, 10, sizeof(int));
 
   ck_assert_int_eq(vec_cap(vec), 10);
   ck_assert_int_eq(vec_len(vec), 0);
@@ -25,12 +22,9 @@ START_TEST(test_vec_new) {
 END_TEST
 
 START_TEST(test_vec_push) {
-  Allocator alloc = {0};
-  libc_alloc_init(&alloc);
-
   const size_t initial_cap = 4;
 
-  int *vec = vec_new(&alloc, initial_cap, sizeof(int));
+  int *vec = vec_new(g_libc_allocator, initial_cap, sizeof(int));
   vec_push(&vec); // Element should be zeroed
   ck_assert_int_eq(vec_len(vec), 1);
 
@@ -68,12 +62,9 @@ START_TEST(test_vec_push) {
 END_TEST
 
 START_TEST(test_vec_pop) {
-  Allocator alloc = {0};
-  libc_alloc_init(&alloc);
-
   const size_t initial_cap = 4;
 
-  int *vec = vec_new(&alloc, initial_cap, sizeof(int));
+  int *vec = vec_new(g_libc_allocator, initial_cap, sizeof(int));
   vec_push(&vec); // Element should be zeroed
   *vec_push(&vec) = 1;
   *vec_push(&vec) = 2;
@@ -110,12 +101,9 @@ START_TEST(test_vec_pop) {
 END_TEST
 
 START_TEST(test_vec_unshift) {
-  Allocator alloc = {0};
-  libc_alloc_init(&alloc);
-
   const size_t initial_cap = 4;
 
-  int *vec = vec_new(&alloc, initial_cap, sizeof(int));
+  int *vec = vec_new(g_libc_allocator, initial_cap, sizeof(int));
   vec_unshift(&vec); // Element should be zeroed
   ck_assert_int_eq(vec_len(vec), 1);
 
@@ -153,12 +141,9 @@ START_TEST(test_vec_unshift) {
 END_TEST
 
 START_TEST(test_vec_shift) {
-  Allocator alloc = {0};
-  libc_alloc_init(&alloc);
-
   const size_t initial_cap = 4;
 
-  int *vec = vec_new(&alloc, initial_cap, sizeof(int));
+  int *vec = vec_new(g_libc_allocator, initial_cap, sizeof(int));
   vec_push(&vec); // Element should be zeroed
   *vec_push(&vec) = 1;
   *vec_push(&vec) = 2;
@@ -195,10 +180,7 @@ START_TEST(test_vec_shift) {
 END_TEST
 
 START_TEST(test_vec_clone) {
-  Allocator alloc = {0};
-  libc_alloc_init(&alloc);
-
-  int *vec = vec_new(&alloc, 10, sizeof(int));
+  int *vec = vec_new(g_libc_allocator, 10, sizeof(int));
   *vec_push(&vec) = 5;
   *vec_push(&vec) = 6;
 
@@ -218,10 +200,7 @@ START_TEST(test_vec_clone) {
 END_TEST
 
 START_TEST(test_vec_foreach) {
-  Allocator alloc = {0};
-  libc_alloc_init(&alloc);
-
-  int *vec = vec_new(&alloc, 10, sizeof(int));
+  int *vec = vec_new(g_libc_allocator, 10, sizeof(int));
   *vec_push(&vec) = 5;
   *vec_push(&vec) = 6;
   *vec_push(&vec) = 8;
@@ -250,10 +229,7 @@ START_TEST(test_vec_foreach) {
 END_TEST
 
 START_TEST(test_vec_foreach_ptr) {
-  Allocator alloc = {0};
-  libc_alloc_init(&alloc);
-
-  int *vec = vec_new(&alloc, 10, sizeof(int));
+  int *vec = vec_new(g_libc_allocator, 10, sizeof(int));
   *vec_push(&vec) = 5;
   *vec_push(&vec) = 6;
   *vec_push(&vec) = 8;
@@ -282,10 +258,7 @@ START_TEST(test_vec_foreach_ptr) {
 END_TEST
 
 START_TEST(test_vec_iter) {
-  Allocator alloc = {0};
-  libc_alloc_init(&alloc);
-
-  int *vec = vec_new(&alloc, 10, sizeof(int));
+  int *vec = vec_new(g_libc_allocator, 10, sizeof(int));
   *vec_push(&vec) = 5;
   *vec_push(&vec) = 6;
   *vec_push(&vec) = 8;

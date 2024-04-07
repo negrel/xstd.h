@@ -5,55 +5,54 @@
 #define XSTD_ARENA_IMPLEMENTATION
 #include "xstd_arena.h"
 
-START_TEST(test_arena_malloc) {
-  Allocator libc_alloc = {0};
-  libc_alloc_init(&libc_alloc);
+#include "xstd_alloc.h"
 
+START_TEST(test_arena_malloc) {
   ArenaAllocator arena = {0};
-  arena_alloc_init(&arena, &libc_alloc, 2 * sizeof(void *));
-  ck_assert(arena.arena_list_ == NULL);
+  arena_allocator_init(&arena, g_libc_allocator, 2 * sizeof(void *));
+  ck_assert(arena.body_.arena_list_ == NULL);
 
   Allocator *alloc = (Allocator *)&arena;
 
   // Allocated data is bigger than arena, allocates a dedicated arena.
   size_t *ptr = alloc_malloc(alloc, 3 * sizeof(void *));
   ck_assert(ptr != NULL);
-  ck_assert(arena.arena_list_ != NULL);
+  ck_assert(arena.body_.arena_list_ != NULL);
   *ptr = 1;
 
   // Allocate data that fits within a single arena.
   ptr = alloc_malloc(alloc, sizeof(void *));
   ck_assert(ptr != NULL);
-  ck_assert(arena.arena_list_ != NULL);
-  ck_assert(arena.arena_list_->next != NULL);
-  ck_assert(arena.arena_list_->next->next == NULL);
+  ck_assert(arena.body_.arena_list_ != NULL);
+  ck_assert(arena.body_.arena_list_->next != NULL);
+  ck_assert(arena.body_.arena_list_->next->next == NULL);
   *ptr = 2;
 
   // Still fits within same arena.
   ptr = alloc_malloc(alloc, sizeof(void *));
   ck_assert(ptr != NULL);
-  ck_assert(arena.arena_list_ != NULL);
-  ck_assert(arena.arena_list_->next != NULL);
-  ck_assert(arena.arena_list_->next->next == NULL);
+  ck_assert(arena.body_.arena_list_ != NULL);
+  ck_assert(arena.body_.arena_list_->next != NULL);
+  ck_assert(arena.body_.arena_list_->next->next == NULL);
   *ptr = 3;
 
   // Now overflow current arena, a new one is allocated.
   ptr = alloc_malloc(alloc, sizeof(void *));
   ck_assert(ptr != NULL);
-  ck_assert(arena.arena_list_ != NULL);
-  ck_assert(arena.arena_list_->next != NULL);
-  ck_assert(arena.arena_list_->next->next != NULL);
-  ck_assert(arena.arena_list_->next->next->next == NULL);
+  ck_assert(arena.body_.arena_list_ != NULL);
+  ck_assert(arena.body_.arena_list_->next != NULL);
+  ck_assert(arena.body_.arena_list_->next->next != NULL);
+  ck_assert(arena.body_.arena_list_->next->next->next == NULL);
   *ptr = 4;
 
   // Allocated data is bigger than arena.
   ptr = alloc_malloc(alloc, 3 * sizeof(void *));
   ck_assert(ptr != NULL);
-  ck_assert(arena.arena_list_ != NULL);
-  ck_assert(arena.arena_list_->next != NULL);
-  ck_assert(arena.arena_list_->next->next != NULL);
-  ck_assert(arena.arena_list_->next->next->next != NULL);
-  ck_assert(arena.arena_list_->next->next->next->next == NULL);
+  ck_assert(arena.body_.arena_list_ != NULL);
+  ck_assert(arena.body_.arena_list_->next != NULL);
+  ck_assert(arena.body_.arena_list_->next->next != NULL);
+  ck_assert(arena.body_.arena_list_->next->next->next != NULL);
+  ck_assert(arena.body_.arena_list_->next->next->next->next == NULL);
   *ptr = 5;
 
   arena_alloc_reset(&arena);
@@ -61,54 +60,51 @@ START_TEST(test_arena_malloc) {
 END_TEST
 
 START_TEST(test_arena_calloc) {
-  Allocator libc_alloc = {0};
-  libc_alloc_init(&libc_alloc);
-
   ArenaAllocator arena = {0};
-  arena_alloc_init(&arena, &libc_alloc, 2 * sizeof(void *));
-  ck_assert(arena.arena_list_ == NULL);
+  arena_allocator_init(&arena, g_libc_allocator, 2 * sizeof(void *));
+  ck_assert(arena.body_.arena_list_ == NULL);
 
   Allocator *alloc = (Allocator *)&arena;
 
   // Allocated data is bigger than arena, allocates a dedicated arena.
   size_t *ptr = alloc_calloc(alloc, 3, sizeof(void *));
   ck_assert(ptr != NULL);
-  ck_assert(arena.arena_list_ != NULL);
+  ck_assert(arena.body_.arena_list_ != NULL);
   *ptr = 1;
 
   // Allocate data that fits within a single arena.
   ptr = alloc_calloc(alloc, 1, sizeof(void *));
   ck_assert(ptr != NULL);
-  ck_assert(arena.arena_list_ != NULL);
-  ck_assert(arena.arena_list_->next != NULL);
-  ck_assert(arena.arena_list_->next->next == NULL);
+  ck_assert(arena.body_.arena_list_ != NULL);
+  ck_assert(arena.body_.arena_list_->next != NULL);
+  ck_assert(arena.body_.arena_list_->next->next == NULL);
   *ptr = 2;
 
   // Still fits within same arena.
   ptr = alloc_calloc(alloc, 1, sizeof(void *));
   ck_assert(ptr != NULL);
-  ck_assert(arena.arena_list_ != NULL);
-  ck_assert(arena.arena_list_->next != NULL);
-  ck_assert(arena.arena_list_->next->next == NULL);
+  ck_assert(arena.body_.arena_list_ != NULL);
+  ck_assert(arena.body_.arena_list_->next != NULL);
+  ck_assert(arena.body_.arena_list_->next->next == NULL);
   *ptr = 3;
 
   // Now overflow current arena, a new one is allocated.
   ptr = alloc_calloc(alloc, 1, sizeof(void *));
   ck_assert(ptr != NULL);
-  ck_assert(arena.arena_list_ != NULL);
-  ck_assert(arena.arena_list_->next != NULL);
-  ck_assert(arena.arena_list_->next->next != NULL);
-  ck_assert(arena.arena_list_->next->next->next == NULL);
+  ck_assert(arena.body_.arena_list_ != NULL);
+  ck_assert(arena.body_.arena_list_->next != NULL);
+  ck_assert(arena.body_.arena_list_->next->next != NULL);
+  ck_assert(arena.body_.arena_list_->next->next->next == NULL);
   *ptr = 4;
 
   // Allocated data is bigger than arena.
   ptr = alloc_calloc(alloc, 3, sizeof(void *));
   ck_assert(ptr != NULL);
-  ck_assert(arena.arena_list_ != NULL);
-  ck_assert(arena.arena_list_->next != NULL);
-  ck_assert(arena.arena_list_->next->next != NULL);
-  ck_assert(arena.arena_list_->next->next->next != NULL);
-  ck_assert(arena.arena_list_->next->next->next->next == NULL);
+  ck_assert(arena.body_.arena_list_ != NULL);
+  ck_assert(arena.body_.arena_list_->next != NULL);
+  ck_assert(arena.body_.arena_list_->next->next != NULL);
+  ck_assert(arena.body_.arena_list_->next->next->next != NULL);
+  ck_assert(arena.body_.arena_list_->next->next->next->next == NULL);
   *ptr = 5;
 
   arena_alloc_reset(&arena);
@@ -116,54 +112,51 @@ START_TEST(test_arena_calloc) {
 END_TEST
 
 START_TEST(test_arena_realloc) {
-  Allocator libc_alloc = {0};
-  libc_alloc_init(&libc_alloc);
-
   ArenaAllocator arena = {0};
-  arena_alloc_init(&arena, &libc_alloc, 2 * sizeof(void *));
-  ck_assert(arena.arena_list_ == NULL);
+  arena_allocator_init(&arena, g_libc_allocator, 2 * sizeof(void *));
+  ck_assert(arena.body_.arena_list_ == NULL);
 
   Allocator *alloc = (Allocator *)&arena;
 
   // Allocated data is bigger than arena, allocates a dedicated arena.
   size_t *ptr = alloc_realloc(alloc, NULL, 3 * sizeof(void *));
   ck_assert(ptr != NULL);
-  ck_assert(arena.arena_list_ != NULL);
+  ck_assert(arena.body_.arena_list_ != NULL);
   *ptr = 1;
 
   // Allocate data that fits within a single arena.
   ptr = alloc_realloc(alloc, ptr, sizeof(void *));
   ck_assert(ptr != NULL);
-  ck_assert(arena.arena_list_ != NULL);
-  ck_assert(arena.arena_list_->next != NULL);
-  ck_assert(arena.arena_list_->next->next == NULL);
+  ck_assert(arena.body_.arena_list_ != NULL);
+  ck_assert(arena.body_.arena_list_->next != NULL);
+  ck_assert(arena.body_.arena_list_->next->next == NULL);
   *ptr = 2;
 
   // Still fits within same arena.
   ptr = alloc_realloc(alloc, ptr, sizeof(void *));
   ck_assert(ptr != NULL);
-  ck_assert(arena.arena_list_ != NULL);
-  ck_assert(arena.arena_list_->next != NULL);
-  ck_assert(arena.arena_list_->next->next == NULL);
+  ck_assert(arena.body_.arena_list_ != NULL);
+  ck_assert(arena.body_.arena_list_->next != NULL);
+  ck_assert(arena.body_.arena_list_->next->next == NULL);
   *ptr = 3;
 
   // Now overflow current arena, a new one is allocated.
   ptr = alloc_realloc(alloc, ptr, sizeof(void *));
   ck_assert(ptr != NULL);
-  ck_assert(arena.arena_list_ != NULL);
-  ck_assert(arena.arena_list_->next != NULL);
-  ck_assert(arena.arena_list_->next->next != NULL);
-  ck_assert(arena.arena_list_->next->next->next == NULL);
+  ck_assert(arena.body_.arena_list_ != NULL);
+  ck_assert(arena.body_.arena_list_->next != NULL);
+  ck_assert(arena.body_.arena_list_->next->next != NULL);
+  ck_assert(arena.body_.arena_list_->next->next->next == NULL);
   *ptr = 4;
 
   // Allocated data is bigger than arena.
   ptr = alloc_realloc(alloc, ptr, 3 * sizeof(void *));
   ck_assert(ptr != NULL);
-  ck_assert(arena.arena_list_ != NULL);
-  ck_assert(arena.arena_list_->next != NULL);
-  ck_assert(arena.arena_list_->next->next != NULL);
-  ck_assert(arena.arena_list_->next->next->next != NULL);
-  ck_assert(arena.arena_list_->next->next->next->next == NULL);
+  ck_assert(arena.body_.arena_list_ != NULL);
+  ck_assert(arena.body_.arena_list_->next != NULL);
+  ck_assert(arena.body_.arena_list_->next->next != NULL);
+  ck_assert(arena.body_.arena_list_->next->next->next != NULL);
+  ck_assert(arena.body_.arena_list_->next->next->next->next == NULL);
   *ptr = 5;
 
   arena_alloc_reset(&arena);
@@ -171,18 +164,15 @@ START_TEST(test_arena_realloc) {
 END_TEST
 
 START_TEST(test_arena_free) {
-  Allocator libc_alloc = {0};
-  libc_alloc_init(&libc_alloc);
-
   ArenaAllocator arena = {0};
-  arena_alloc_init(&arena, &libc_alloc, 2 * sizeof(void *));
-  ck_assert(arena.arena_list_ == NULL);
+  arena_allocator_init(&arena, g_libc_allocator, 2 * sizeof(void *));
+  ck_assert(arena.body_.arena_list_ == NULL);
 
   Allocator *alloc = (Allocator *)&arena;
 
   size_t *ptr = alloc_malloc(alloc, sizeof(size_t));
   ck_assert(ptr != NULL);
-  ck_assert(arena.arena_list_ != NULL);
+  ck_assert(arena.body_.arena_list_ != NULL);
   *ptr = 1;
   size_t ptr_val = *ptr;
 
@@ -196,7 +186,7 @@ START_TEST(test_arena_free) {
 END_TEST
 
 static Suite *alloc_suite(void) {
-  Suite *s = suite_create("alloc");
+  Suite *s = suite_create("arena");
   TCase *tc_core = tcase_create("Core");
 
   tcase_add_test(tc_core, test_arena_malloc);

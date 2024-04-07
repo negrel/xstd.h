@@ -6,51 +6,39 @@
 #include "xstd_alloc.h"
 
 START_TEST(test_libc_malloc) {
-  Allocator alloc = {0};
-  libc_alloc_init(&alloc);
-
-  size_t *ptr = alloc_malloc(&alloc, sizeof(size_t));
+  size_t *ptr = alloc_malloc(g_libc_allocator, sizeof(size_t));
   ck_assert(ptr != NULL);
 
-  alloc_free(&alloc, ptr);
+  alloc_free(g_libc_allocator, ptr);
 }
 END_TEST
 
 START_TEST(test_libc_calloc) {
-  Allocator alloc = {0};
-  libc_alloc_init(&alloc);
-
-  size_t *ptr = alloc_calloc(&alloc, 1, sizeof(size_t));
+  size_t *ptr = alloc_calloc(g_libc_allocator, 1, sizeof(size_t));
   ck_assert(ptr != NULL);
   ck_assert_int_eq(0, *ptr);
 
-  alloc_free(&alloc, ptr);
+  alloc_free(g_libc_allocator, ptr);
 }
 END_TEST
 
 START_TEST(test_libc_realloc) {
-  Allocator alloc = {0};
-  libc_alloc_init(&alloc);
-
-  size_t *ptr = alloc_malloc(&alloc, sizeof(size_t));
+  size_t *ptr = alloc_malloc(g_libc_allocator, sizeof(size_t));
   ck_assert(ptr != NULL);
 
-  ptr = alloc_realloc(&alloc, ptr, 2 * sizeof(size_t));
+  ptr = alloc_realloc(g_libc_allocator, ptr, 2 * sizeof(size_t));
   ptr[1] = 1;
 
-  alloc_free(&alloc, ptr);
+  alloc_free(g_libc_allocator, ptr);
 }
 END_TEST
 
 START_TEST(test_libc_free) {
-  Allocator alloc = {0};
-  libc_alloc_init(&alloc);
-
-  size_t *ptr = alloc_malloc(&alloc, sizeof(size_t));
+  size_t *ptr = alloc_malloc(g_libc_allocator, sizeof(size_t));
   ck_assert(ptr != NULL);
 
-  alloc_free(&alloc, ptr);
-  alloc_free(&alloc, ptr);
+  alloc_free(g_libc_allocator, ptr);
+  alloc_free(g_libc_allocator, NULL);
 }
 END_TEST
 
