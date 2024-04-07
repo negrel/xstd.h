@@ -33,6 +33,37 @@ void closer_close(Closer *closer, int *error) {
 }
 #endif
 
+// NopCloser is a no-op Closer implementation.
+typedef struct {
+  Closer closer;
+} NopCloser;
+
+void nop_closer_close(void *_, int *error);
+
+#ifdef XSTD_IMPLEMENTATION
+void nop_closer_close(void *_, int *error) {
+  (void)_;
+  (void)error;
+}
+#endif
+
+struct xstd_closer_vtable nop_closer_vtable;
+
+#ifdef XSTD_IMPLEMENTATION
+struct xstd_closer_vtable nop_closer_vtable = {.close = &nop_closer_close};
+#endif
+
+NopCloser nop_closer(void);
+
+#ifdef XSTD_IMPLEMENTATION
+NopCloser nop_closer(void) {
+  NopCloser nc = {0};
+  nc.closer.vtable_ = &nop_closer_vtable;
+  nc.closer.offset_ = 0;
+  return nc;
+}
+#endif
+
 // FileCloser wraps FILE and implements the Closer interface.
 typedef struct {
   Closer closer;
