@@ -1,8 +1,11 @@
+// A simple comment for the tests.
+
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 
 #include <check.h>
+#include <string.h>
 
 #define XSTD_IMPLEMENTATION
 #include "io/reader.h"
@@ -12,17 +15,22 @@ START_TEST(test_file_reader) {
   FileReader freader = file_reader(f);
   Reader *reader = (Reader *)&freader;
 
-  uint8_t buf[128] = {0};
+  uint8_t buf[32] = {0};
   size_t read = 0;
   int error = 0;
 
-  reader_read(reader, buf, 128, &read, &error);
-
+  reader_read(reader, &buf[0], 32, &read, &error);
   ck_assert_int_eq(error, 0);
-  ck_assert_int_eq(read, 128);
+  ck_assert_int_eq(read, 32);
+  ck_assert(strncmp((char *)buf, "// A simple comment for the test", 32) == 0);
+
+  reader_read(reader, &buf[0], 32, &read, &error);
+  ck_assert_int_eq(error, 0);
+  ck_assert_int_eq(read, 32);
+  ck_assert(strncmp((char *)buf, "s.\n", 2) == 0);
 
   while (read != 0) {
-    reader_read(reader, buf, 128, &read, &error);
+    reader_read(reader, buf, 32, &read, &error);
   }
 
   ck_assert_int_eq(error, EOF);

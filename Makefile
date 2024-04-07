@@ -2,7 +2,7 @@ include variables.mk
 
 HEADERS := alloc
 HEADERS += io/closer io/reader io/writer io/read_closer io/read_writer io/write_closer
-HEADERS += iter arena vec list
+HEADERS += iter reader_iter arena vec list
 HEADERS := $(HEADERS:%=%.h)
 
 TEST_SRCS := $(HEADERS:%.h=$(TEST_DIR)/%.c)
