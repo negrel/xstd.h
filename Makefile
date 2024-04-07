@@ -10,7 +10,7 @@ $(BUILD_DIR)/$(TEST_DIR)/%: $(TEST_DIR)/%.c
 	valgrind --quiet --leak-check=full --errors-for-leak-kinds=definite $@
 
 .PHONY: tests
-tests: $(BUILD_DIR)/$(TEST_DIR)/io_writer_test $(BUILD_DIR)/$(TEST_DIR)/io_reader_test $(BUILD_DIR)/$(TEST_DIR)/vec_test $(BUILD_DIR)/$(TEST_DIR)/iter_test $(BUILD_DIR)/$(TEST_DIR)/list_test $(BUILD_DIR)/$(TEST_DIR)/alloc_test $(BUILD_DIR)/$(TEST_DIR)/arena_test
+tests: $(BUILD_DIR)/$(TEST_DIR)/io_closer_test $(BUILD_DIR)/$(TEST_DIR)/io_writer_test $(BUILD_DIR)/$(TEST_DIR)/io_reader_test $(BUILD_DIR)/$(TEST_DIR)/io_read_writer_test $(BUILD_DIR)/$(TEST_DIR)/vec_test $(BUILD_DIR)/$(TEST_DIR)/iter_test $(BUILD_DIR)/$(TEST_DIR)/list_test $(BUILD_DIR)/$(TEST_DIR)/alloc_test $(BUILD_DIR)/$(TEST_DIR)/arena_test
 
 .PHONY: clean
 clean:

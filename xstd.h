@@ -110,11 +110,14 @@ FileReader file_reader(FILE *f) {
 #ifndef XSTD_IO_WRITER_H_INCLUDE
 #define XSTD_IO_WRITER_H_INCLUDE
 
-#include <errno.h>
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
 #include <stdio.h>
+
+#ifdef XSTD_IO_WRITER_IMPLEMENTATION
+#include <errno.h>
+#endif
 
 // Writer interface / virtual table. Writer is the interface that wraps the
 // basic Write method.
