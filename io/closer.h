@@ -73,7 +73,7 @@ typedef struct {
 #ifdef XSTD_IMPLEMENTATION
 static void file_closer_close(void *file, int *error) {
   FILE *f = *(void **)file;
-  if (!fclose(f))
+  if (!fclose(f) && error != NULL)
     *error = errno;
 }
 #endif
