@@ -17,6 +17,25 @@ You can get latest/unstable bundle by running `make bundle`
 make tests
 ```
 
+## Conventions
+
+### Globals
+
+Globals are written in snake case and prefixed with `g_`.
+
+### Type Names
+
+Private type names are written in `snake_case` with an `xstd_` prefix.
+
+Public type names are `typedef` with a `CamelCase` name.
+
+### Interfaces
+
+Interfaces implementations are decoupled in three parts:
+* virtual table: a struct containing pointer to methods
+* interface struct: a struct containing a pointer to a virtual table and an offset to the body
+* body: private field specific to interface implementations
+
 ## Contributing
 
 If you want to contribute to `xstd.h` to add a feature or improve the code contact
