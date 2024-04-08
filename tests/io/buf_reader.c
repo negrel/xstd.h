@@ -1,6 +1,5 @@
 // A simple comment for the tests.
 
-#include "io/buf_reader.h"
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -9,6 +8,7 @@
 #include <string.h>
 
 #define XSTD_IMPLEMENTATION
+#include "io/buf_reader.h"
 #include "io/reader.h"
 
 START_TEST(test_buf_reader) {

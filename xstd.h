@@ -680,8 +680,10 @@ FileWriteCloser file_write_closer(FILE *f) {
 
 #include <stddef.h>
 #include <stdint.h>
+
+#ifdef XSTD_IMPLEMENTATION
 #include <string.h>
-#define XSTD_IMPLEMENTATION
+#endif
 
 
 struct xstd_buf_reader_body {

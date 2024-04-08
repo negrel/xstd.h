@@ -3,8 +3,10 @@
 
 #include <stddef.h>
 #include <stdint.h>
+
+#ifdef XSTD_IMPLEMENTATION
 #include <string.h>
-#define XSTD_IMPLEMENTATION
+#endif
 
 #include "io/reader.h"
 
