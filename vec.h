@@ -280,8 +280,15 @@ void vec_free(Vec vec) {
   assert(vec != NULL);
 
   struct xstd_vector *v = headerof_vec(vec);
-  free(v);
+  alloc_free(v->allocator_, v);
 }
+#endif
+
+// vec_reset resets vector length to 0.
+void vec_reset(Vec);
+
+#ifdef XSTD_IMPLEMENTATION
+void vec_reset(Vec v) { headerof_vec(v)->len_ = 0; }
 #endif
 
 #define vec_iter_foreach(vec, iterator)                                        \
