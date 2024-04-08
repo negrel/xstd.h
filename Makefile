@@ -1,7 +1,7 @@
 include variables.mk
 
 HEADERS := alloc
-HEADERS += io/closer io/reader io/writer io/read_closer io/read_writer io/write_closer
+HEADERS += io/closer io/reader io/writer io/read_closer io/read_writer io/write_closer io/buf_reader
 HEADERS += iter arena vec list
 HEADERS := $(HEADERS:%=%.h)
 
