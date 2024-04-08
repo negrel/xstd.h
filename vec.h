@@ -169,15 +169,10 @@ void *vec_push_(void **vec) {
 
   if (vec_isfull(*vec)) {
     // Let's double the capacity of our vector
-    struct xstd_vector *old = headerof_vec(*vec);
-
-    void *new = vec_new(old->allocator_, old->cap_ * 2, old->elem_size_);
-    headerof_vec(new)->len_ = old->len_;
-
-    memcpy(new, (void *)bodyof_vec(old), old->cap_ * old->elem_size_);
-    alloc_free(old->allocator_, old);
-
-    *vec = new;
+    struct xstd_vector *v = headerof_vec(*vec);
+    v->cap_ *= 2;
+    *vec =
+        (void *)bodyof_vec(alloc_realloc(v->allocator_, v, sizeof_vector(v)));
   }
 
   struct xstd_vector *v = headerof_vec(*vec);
@@ -247,19 +242,10 @@ void *vec_unshift_(void **vec) {
 
   if (vec_isfull(*vec)) {
     // Let's double the capacity of our vector
-    struct xstd_vector *old = headerof_vec(*vec);
-
-    Vec new = vec_new(old->allocator_, old->cap_ * 2, old->elem_size_);
-    headerof_vec(new)->len_ = old->len_ + 1;
-
-    // Copy old elements in new at index 1
-    memcpy((void *)((uintptr_t) new + old->elem_size_), (void *)bodyof_vec(old),
-           old->cap_ * old->elem_size_);
-    alloc_free(old->allocator_, old);
-
-    *vec = new;
-
-    return new;
+    struct xstd_vector *v = headerof_vec(*vec);
+    v->cap_ *= 2;
+    *vec =
+        (void *)bodyof_vec(alloc_realloc(v->allocator_, v, sizeof_vector(v)));
   }
 
   struct xstd_vector *v = headerof_vec(*vec);
@@ -289,6 +275,20 @@ void vec_reset(Vec);
 
 #ifdef XSTD_IMPLEMENTATION
 void vec_reset(Vec v) { headerof_vec(v)->len_ = 0; }
+#endif
+
+#define vec_resize(vec, new_size) vec_resize_((void **)vec, new_size)
+
+// vec_resize_ resizes vector to the given capacity.
+// An handy vec_resize macro exists so you don't have to cast arguments.
+void vec_resize_(Vec *, size_t);
+
+#ifdef XSTD_IMPLEMENTATION
+void vec_resize_(void **vec, size_t cap) {
+  struct xstd_vector *v = headerof_vec(*vec);
+  v->cap_ = cap;
+  *vec = (void *)bodyof_vec(alloc_realloc(v->allocator_, v, sizeof_vector(v)));
+}
 #endif
 
 #define vec_iter_foreach(vec, iterator)                                        \
