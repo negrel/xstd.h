@@ -79,9 +79,15 @@ bool bytes_buffer_resize(BytesBuffer *buffer, size_t new_capacity) {
 
   buffer->bytes_ = bytes;
   buffer->cap_ = new_capacity;
+
+  if (buffer->cap_ < buffer->len_)
+    buffer->len_ = buffer->cap_;
   return true;
 }
 #endif
+
+#define bytes_buffer_append(buffer, data)                                      \
+  bytes_buffer_append_bytes(buffer, data, sizeof(typeof(*data)))
 
 #define bytes_buffer_append_char(buffer, data)                                 \
   bytes_buffer_append_bytes(buffer, data, sizeof(char))
@@ -109,26 +115,12 @@ size_t bytes_buffer_append_bytes(BytesBuffer *buffer, void *data, size_t size) {
 }
 #endif
 
-size_t bytes_buffer_append(BytesBuffer *buffer, void *data, size_t nmemb,
-                           size_t size);
-
 void bytes_buffer_fill(BytesBuffer *buffer, int c);
 
 #ifdef XSTD_IMPLEMENTATION
 void bytes_buffer_fill(BytesBuffer *buffer, int c) {
   memset(buffer->bytes_, c, buffer->cap_);
   buffer->len_ = buffer->cap_;
-}
-#endif
-
-#ifdef XSTD_IMPLEMENTATION
-size_t bytes_buffer_append(BytesBuffer *buffer, void *data, size_t nmemb,
-                           size_t size) {
-  size_t total_size = nmemb * size;
-  if (total_size / size != nmemb || total_size + buffer->cap_ < total_size)
-    return 0; // Overflow.
-
-  return bytes_buffer_append_bytes(buffer, data, total_size);
 }
 #endif
 
