@@ -124,6 +124,15 @@ void bytes_buffer_fill(BytesBuffer *buffer, int c) {
 }
 #endif
 
+void bytes_buffer_fill_available(BytesBuffer *buffer, int c);
+
+#ifdef XSTD_IMPLEMENTATION
+void bytes_buffer_fill_available(BytesBuffer *buffer, int c) {
+  memset(&buffer->bytes_[buffer->len_], c, bytes_buffer_available(buffer));
+  buffer->len_ = buffer->cap_;
+}
+#endif
+
 #define bytes_buffer_get(buffer, index, type)                                  \
   *(type *)(bytes_buffer_get_(buffer, index, sizeof(type)))
 
