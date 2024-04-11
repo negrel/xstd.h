@@ -124,11 +124,11 @@ void bytes_buffer_fill(BytesBuffer *buffer, int c) {
 }
 #endif
 
-#define bytes_buffer_set(buffer, index, value)                                 \
-  (bytes_buffer_get(buffer, index, typeof(value)) = value)
-
 #define bytes_buffer_get(buffer, index, type)                                  \
   *(type *)(bytes_buffer_get_(buffer, index, sizeof(type)))
+
+#define bytes_buffer_get_ptr(buffer, index, type)                              \
+  ((type *)(bytes_buffer_get_(buffer, index, sizeof(type))))
 
 void *bytes_buffer_get_(const BytesBuffer *buffer, size_t index,
                         size_t elem_size);
