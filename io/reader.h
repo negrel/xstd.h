@@ -10,11 +10,8 @@
 #include <errno.h>
 #endif
 
-#include "alloc.h"
-
-struct xstd_reader_vtable {
-  void (*read)(void *reader, uint8_t *p, size_t p_len, size_t *n, int *err);
-};
+#include "constructor.h"
+#include "iface.h"
 
 // Reader is the interface that wraps the basic read method.
 //
@@ -44,10 +41,11 @@ struct xstd_reader_vtable {
 // EOF.
 //
 // Implementations must not retain p.
-typedef struct xstd_reader {
-  struct xstd_reader_vtable *vtable_;
-  size_t offset_;
-} Reader;
+iface_def(
+    Reader, struct xstd_reader_vtable {
+      void (*read)(InterfaceImpl reader, uint8_t *p, size_t p_len, size_t *n,
+                   int *err);
+    });
 
 // reader_read calls the read method of the reader.
 void reader_read(Reader *reader, uint8_t *p, size_t p_len, size_t *n, int *err);
@@ -55,22 +53,18 @@ void reader_read(Reader *reader, uint8_t *p, size_t p_len, size_t *n, int *err);
 #ifdef XSTD_IMPLEMENTATION
 void reader_read(Reader *reader, uint8_t *p, size_t p_len, size_t *n,
                  int *err) {
-  reader->vtable_->read((void *)((uintptr_t)reader + reader->offset_), p, p_len,
-                        n, err);
+  iface_call(reader, read, p, p_len, n, err);
 }
 #endif
 
 // FileReader wraps FILE and implements Reader.
-typedef struct {
-  Reader reader;
-  FILE *f_;
-} FileReader;
+iface_impl_def(Reader, FileReader, FILE *);
 
 // file_reader_read implements Reader.
 #ifdef XSTD_IMPLEMENTATION
-static void file_reader_read(void *file, uint8_t *p, size_t p_len, size_t *n,
-                             int *error) {
-  FILE *f = *(void **)file;
+static void file_reader_read(InterfaceImpl impl, uint8_t *p, size_t p_len,
+                             size_t *n, int *error) {
+  typeof_iface_impl(FileReader) f = cast_iface_impl(FileReader, impl);
   size_t read = fread(p, sizeof(*p), p_len, f);
   if (n != NULL)
     *n = read;
@@ -92,38 +86,17 @@ struct xstd_reader_vtable file_reader_vtable;
 struct xstd_reader_vtable file_reader_vtable = {.read = &file_reader_read};
 #endif
 
-// file_reader_init initializes the given FileReader.
-void file_reader_init(FileReader *freader, FILE *f);
+// Generate file_writer_init, file_writer_new and file_writer constructors.
 
-#ifdef XSTD_IMPLEMENTATION
-void file_reader_init(FileReader *freader, FILE *f) {
-  *freader = (FileReader){0};
-  freader->reader.vtable_ = &file_reader_vtable;
-  freader->reader.offset_ = offsetof(FileReader, f_);
-  freader->f_ = f;
-}
-#endif
+#undef type_init_proto
+#undef type_init_args
+#undef type_init
 
-// file_reader_new allocates, initializes and returns a new FileReader.
-FileReader *file_reader_new(Allocator *allocator, FILE *f);
+#define type_init_proto FILE *f
+#define type_init_args f
+#define type_init                                                              \
+  { iface_impl_init(t, iface, &file_reader_vtable, f) }
 
-#ifdef XSTD_IMPLEMENTATION
-FileReader *file_reader_new(Allocator *allocator, FILE *f) {
-  FileReader *freader = alloc_malloc(allocator, sizeof(FileReader));
-  file_reader_init(freader, f);
-  return freader;
-}
-#endif
-
-// file_reader initializes and returns a FileReader that wraps the given file.
-FileReader file_reader(FILE *f);
-
-#ifdef XSTD_IMPLEMENTATION
-FileReader file_reader(FILE *f) {
-  FileReader freader = {0};
-  file_reader_init(&freader, f);
-  return freader;
-}
-#endif
+def_type_constructors(FileReader, file_reader)
 
 #endif

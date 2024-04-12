@@ -36,7 +36,7 @@ START_TEST(test_file_read_writer_write) {
 
   FILE *f = fopen("/dev/null", "w");
   FileReadWriter frw = file_read_writer(f);
-  ReadWriter *read_writer = &frw.read_writer;
+  ReadWriter *read_writer = &frw.iface;
 
   uint8_t buf[128] = {0};
   size_t write = 0;

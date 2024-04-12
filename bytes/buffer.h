@@ -5,7 +5,6 @@
 #include <stdint.h>
 #include <string.h>
 
-#define XSTD_IMPLEMENTATION
 #ifdef XSTD_IMPLEMENTATION
 #include <assert.h>
 #endif
@@ -88,9 +87,6 @@ bool bytes_buffer_resize(BytesBuffer *buffer, size_t new_capacity) {
 
 #define bytes_buffer_append(buffer, data)                                      \
   bytes_buffer_append_bytes(buffer, data, sizeof(typeof(*data)))
-
-#define bytes_buffer_append_char(buffer, data)                                 \
-  bytes_buffer_append_bytes(buffer, data, sizeof(char))
 
 size_t bytes_buffer_append_bytes(BytesBuffer *buffer, void *data, size_t size);
 
@@ -179,10 +175,10 @@ BytesBuffer bytes_buffer(Allocator *allocator) {
 }
 #endif
 
-void bytes_buffer_deinit(BytesBuffer *buf);
+void bytes_buffer_destroy(BytesBuffer *buf);
 
 #ifdef XSTD_IMPLEMENTATION
-void bytes_buffer_deinit(BytesBuffer *buf) {
+void bytes_buffer_destroy(BytesBuffer *buf) {
   alloc_free(buf->allocator_, buf->bytes_);
 }
 #endif
@@ -194,7 +190,7 @@ void bytes_buffer_free(BytesBuffer *buf) {
   if (buf == NULL)
     return;
 
-  bytes_buffer_deinit(buf);
+  bytes_buffer_destroy(buf);
   alloc_free(buf->allocator_, buf);
 }
 #endif

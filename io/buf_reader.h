@@ -8,22 +8,20 @@
 #include <string.h>
 #endif
 
+#include "constructor.h"
+#include "iface.h"
 #include "io/reader.h"
 
-struct xstd_buf_reader_body {
-  Reader *reader;
-  uint8_t *buf;
-  size_t buf_len;
-  int read_err;
-  size_t read;
-  size_t write;
-};
-
 // BufReader wraps a Reader
-typedef struct {
-  Reader reader;
-  struct xstd_buf_reader_body body_;
-} BufReader;
+iface_impl_def(
+    Reader, BufReader, struct {
+      Reader *reader;
+      uint8_t *buf;
+      size_t buf_len;
+      int read_err;
+      size_t read;
+      size_t write;
+    });
 
 size_t buf_reader_buffered(BufReader *buf_reader);
 
@@ -34,13 +32,13 @@ size_t buf_reader_buffered(BufReader *buf_reader) {
 #endif
 
 #ifdef XSTD_IMPLEMENTATION
-static void buf_reader_read(void *body, uint8_t *p, size_t p_len, size_t *n,
-                            int *err) {
+static void buf_reader_read(InterfaceImpl impl, uint8_t *p, size_t p_len,
+                            size_t *n, int *err) {
   // p is empty.
   if (p_len == 0)
     return;
 
-  struct xstd_buf_reader_body *b = (struct xstd_buf_reader_body *)body;
+  typeof_iface_impl(BufReader) *b = cast_iface_impl_ptr(BufReader, impl);
 
   size_t buffered = b->read - b->write;
 
@@ -89,42 +87,21 @@ struct xstd_reader_vtable buf_reader_vtable;
 struct xstd_reader_vtable buf_reader_vtable = {.read = &buf_reader_read};
 #endif
 
-void buf_reader_init(BufReader *buf_reader, Reader *r, uint8_t *buf,
-                     size_t buf_len);
+#undef type_init_proto
+#undef type_init_args
+#undef type_init
+#define type_init_proto Reader *r, uint8_t *buf, size_t buf_len
+#define type_init_args r, buf, buf_len
+#define type_init                                                              \
+  {                                                                            \
+    iface_impl_init(t, iface, &buf_reader_vtable,                              \
+                    ((typeof_iface_impl(BufReader)){                           \
+                        .reader = r,                                           \
+                        .buf = buf,                                            \
+                        .buf_len = buf_len,                                    \
+                    }));                                                       \
+  }
 
-#ifdef XSTD_IMPLEMENTATION
-void buf_reader_init(BufReader *buf_reader, Reader *r, uint8_t *buf,
-                     size_t buf_len) {
-  *buf_reader = (BufReader){0};
-  buf_reader->reader.vtable_ = &buf_reader_vtable;
-  buf_reader->reader.offset_ = offsetof(BufReader, body_);
-
-  buf_reader->body_.reader = r;
-  buf_reader->body_.buf = buf;
-  buf_reader->body_.buf_len = buf_len;
-}
-#endif
-
-BufReader *buf_reader_new(Allocator *allocator, Reader *r, uint8_t *buf,
-                          size_t buf_len);
-
-#ifdef XSTD_IMPLEMENTATION
-BufReader *buf_reader_new(Allocator *allocator, Reader *r, uint8_t *buf,
-                          size_t buf_len) {
-  BufReader *buf_reader = alloc_malloc(allocator, sizeof(BufReader));
-  buf_reader_init(buf_reader, r, buf, buf_len);
-  return buf_reader;
-}
-#endif
-
-BufReader buf_reader(Reader *r, uint8_t *buf, size_t buf_len);
-
-#ifdef XSTD_IMPLEMENTATION
-BufReader buf_reader(Reader *r, uint8_t *buf, size_t buf_len) {
-  BufReader buf_reader = {0};
-  buf_reader_init(&buf_reader, r, buf, buf_len);
-  return buf_reader;
-}
-#endif
+def_type_constructors(BufReader, buf_reader)
 
 #endif

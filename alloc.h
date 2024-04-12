@@ -12,18 +12,16 @@
 #include <stdlib.h>
 #endif
 
-struct xstd_allocator_vtable {
-  void *(*malloc)(void *allocator, size_t size);
-  void (*free)(void *allocator, void *ptr);
-  void *(*calloc)(void *allocator, size_t nmemb, size_t size);
-  void *(*realloc)(void *allocator, void *ptr, size_t newsize);
-};
+#include "iface.h"
 
 // Allocator interface.
-typedef struct {
-  struct xstd_allocator_vtable *vtable_;
-  size_t offset_;
-} Allocator;
+iface_def(
+    Allocator, struct xstd_allocator_vtable {
+      void *(*malloc)(InterfaceImpl allocator, size_t size);
+      void (*free)(InterfaceImpl allocator, void *ptr);
+      void *(*calloc)(InterfaceImpl allocator, size_t nmemb, size_t size);
+      void *(*realloc)(InterfaceImpl allocator, void *ptr, size_t newsize);
+    });
 
 // alloc_malloc() allocates size bytes and returns a pointer to the allocated
 // memory. The memory is not initialized.
@@ -31,8 +29,7 @@ void *alloc_malloc(Allocator *, size_t);
 
 #ifdef XSTD_IMPLEMENTATION
 void *alloc_malloc(Allocator *allocator, size_t size) {
-  void *ptr = allocator->vtable_->malloc(
-      (void *)((uintptr_t)allocator + allocator->offset_), size);
+  void *ptr = iface_call(allocator, malloc, size);
   assert(ptr != NULL);
   return ptr;
 }
@@ -44,8 +41,7 @@ void alloc_free(Allocator *allocator, void *ptr);
 
 #ifdef XSTD_IMPLEMENTATION
 void alloc_free(Allocator *allocator, void *ptr) {
-  allocator->vtable_->free((void *)((uintptr_t)allocator + allocator->offset_),
-                           ptr);
+  iface_call(allocator, free, ptr);
 }
 #endif
 
@@ -56,8 +52,7 @@ void *alloc_calloc(Allocator *allocator, size_t nmemb, size_t size);
 
 #ifdef XSTD_IMPLEMENTATION
 void *alloc_calloc(Allocator *allocator, size_t nmemb, size_t size) {
-  void *ptr = allocator->vtable_->calloc(
-      (void *)((uintptr_t)allocator + allocator->offset_), nmemb, size);
+  void *ptr = iface_call(allocator, calloc, nmemb, size);
   assert(ptr != NULL);
   return ptr;
 }
@@ -72,8 +67,7 @@ void *alloc_realloc(Allocator *allocator, void *ptr, size_t newsize);
 
 #ifdef XSTD_IMPLEMENTATION
 void *alloc_realloc(Allocator *allocator, void *ptr, size_t newsize) {
-  ptr = allocator->vtable_->realloc(
-      (void *)((uintptr_t)allocator + allocator->offset_), ptr, newsize);
+  ptr = iface_call(allocator, realloc, ptr, newsize);
   assert(ptr != NULL);
   return ptr;
 }
@@ -82,23 +76,23 @@ void *alloc_realloc(Allocator *allocator, void *ptr, size_t newsize) {
 Allocator *g_libc_allocator;
 
 #ifdef XSTD_IMPLEMENTATION
-static void *libc_malloc(void *alloc, size_t size) {
+static void *libc_malloc(InterfaceImpl alloc, size_t size) {
   (void)alloc;
   return malloc(size);
 }
 
-static void libc_free(void *alloc, void *ptr) {
+static void libc_free(InterfaceImpl alloc, void *ptr) {
   (void)alloc;
   free(ptr);
 }
 
-static void *libc_calloc(void *alloc, size_t nmemb, size_t size) {
+static void *libc_calloc(InterfaceImpl alloc, size_t nmemb, size_t size) {
   (void)alloc;
   void *ptr = calloc(nmemb, size);
   return ptr;
 }
 
-static void *libc_realloc(void *alloc, void *ptr, size_t size) {
+static void *libc_realloc(InterfaceImpl alloc, void *ptr, size_t size) {
   (void)alloc;
   return realloc(ptr, size);
 }

@@ -4,24 +4,21 @@
 #include <stddef.h>
 
 #ifdef XSTD_IMPLEMENTATION
-#include <assert.h>
 #include <stdint.h>
 #endif
 
 #include "alloc.h"
-
-struct xstd_arena_allocator_body {
-  Allocator *parent_allocator_;
-  size_t arena_size_;
-  struct xstd_arena *arena_list_;
-  size_t cursor_;
-};
+#include "constructor.h"
+#include "iface.h"
 
 // ArenaAllocator is an arena allocator.
-typedef struct xstd_arena_allocator {
-  Allocator allocator;
-  struct xstd_arena_allocator_body body_;
-} ArenaAllocator;
+iface_impl_def(
+    Allocator, ArenaAllocator, struct {
+      Allocator *parent_allocator_;
+      size_t arena_size_;
+      struct xstd_arena *arena_list_;
+      size_t cursor_;
+    });
 
 struct xstd_arena {
   // Header
@@ -35,9 +32,9 @@ void arena_allocator_init(ArenaAllocator *arena, Allocator *parent,
                           size_t arena_size);
 
 #ifdef XSTD_IMPLEMENTATION
-static void *arena_calloc(void *b, size_t nmemb, size_t size) {
-  struct xstd_arena_allocator_body *arena_body =
-      (struct xstd_arena_allocator_body *)b;
+static void *arena_calloc(InterfaceImpl impl, size_t nmemb, size_t size) {
+  typeof_iface_impl(ArenaAllocator) *arena_body =
+      cast_iface_impl_ptr(ArenaAllocator, impl);
 
   // Detect overflow.
   size_t alloc_size = nmemb * size;
@@ -107,51 +104,46 @@ static void arena_free(void *allocator, void *ptr) {
   (void)allocator;
   (void)ptr;
 }
+#endif
 
-static struct xstd_allocator_vtable arena_allocator_vtable = {
+struct xstd_allocator_vtable arena_allocator_vtable;
+
+#ifdef XSTD_IMPLEMENTATION
+struct xstd_allocator_vtable arena_allocator_vtable = {
     .malloc = &arena_malloc,
     .free = &arena_free,
     .calloc = &arena_calloc,
     .realloc = &arena_realloc,
 };
-
-void arena_allocator_init(ArenaAllocator *arena, Allocator *parent,
-                          size_t arena_size) {
-  assert(arena_size > sizeof(void *) &&
-         "arena size must be greater than size of a pointer");
-
-  arena->body_.parent_allocator_ = parent;
-  arena->body_.arena_size_ = arena_size;
-  arena->body_.arena_list_ = NULL;
-  arena->allocator = (Allocator){0};
-  arena->allocator.vtable_ = &arena_allocator_vtable;
-  arena->allocator.offset_ = offsetof(ArenaAllocator, body_);
-}
 #endif
 
-ArenaAllocator arena_allocator(Allocator *parent, size_t arena_size);
+#undef type_init_proto
+#undef type_init_args
+#undef type_init
+#define type_init_proto Allocator *parent, size_t arena_size
+#define type_init_args parent, arena_size
+#define type_init                                                              \
+  {                                                                            \
+    iface_impl_init(t, iface, &arena_allocator_vtable,                         \
+                    ((typeof_iface_impl(ArenaAllocator)){                      \
+                        .parent_allocator_ = parent,                           \
+                        .arena_size_ = arena_size,                             \
+                    }))                                                        \
+  }
+
+def_type_constructors(ArenaAllocator, arena_allocator)
+
+    void arena_alloc_destroy(ArenaAllocator *arena);
 
 #ifdef XSTD_IMPLEMENTATION
-ArenaAllocator arena_allocator(Allocator *parent, size_t arena_size) {
-  ArenaAllocator alloc = {0};
-  arena_allocator_init(&alloc, parent, arena_size);
-  return alloc;
-}
-#endif
-
-void arena_alloc_reset(ArenaAllocator *arena);
-
-#ifdef XSTD_IMPLEMENTATION
-void arena_alloc_reset(ArenaAllocator *arena_alloc) {
+void arena_alloc_destroy(ArenaAllocator *arena_alloc) {
   struct xstd_arena **arena = &arena_alloc->body_.arena_list_;
   while (*arena != NULL) {
     struct xstd_arena *a = *arena;
     *arena = a->next;
     alloc_free(arena_alloc->body_.parent_allocator_, a);
   }
-
-  arena_allocator_init(arena_alloc, arena_alloc->body_.parent_allocator_,
-                       arena_alloc->body_.arena_size_);
+  arena_alloc->body_.arena_list_ = NULL;
 }
 #endif
 

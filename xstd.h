@@ -10,6 +10,149 @@
 
 #define type_assert_eq(X, Y)                                                   \
   _Generic((Y), typeof(X): _Generic((X), typeof(Y): (void)NULL))
+#ifndef XSTD_CONSTRUCTOR_H_INCLUDE
+#define XSTD_CONSTRUCTOR_H_INCLUDE
+
+// Used by def_type_constructors macros.
+#include <assert.h>
+
+// Used by def_type_constructors macros.
+
+#define type_init_proto
+#define type_init_args
+#define type_init                                                              \
+  {}
+
+#ifdef XSTD_IMPLEMENTATION
+#define def_type_constructors(type, type_snake)                                \
+  void type_snake##_init(type *t, type_init_proto);                            \
+  void type_snake##_init(type *t, type_init_proto) {                           \
+    assert(t != NULL);                                                         \
+    *t = (type){0};                                                            \
+    type_init                                                                  \
+  }                                                                            \
+                                                                               \
+  type *type_snake##_new(Allocator *allocator, type_init_proto);               \
+  type *type_snake##_new(Allocator *allocator, type_init_proto) {              \
+    type *t = alloc_malloc(allocator, sizeof(type));                           \
+    type_snake##_init(t, type_init_args);                                      \
+    return t;                                                                  \
+  }                                                                            \
+                                                                               \
+  type type_snake(type_init_proto);                                            \
+  type type_snake(type_init_proto) {                                           \
+    type t = {0};                                                              \
+    type_snake##_init(&t, type_init_args);                                     \
+    return t;                                                                  \
+  }
+#else
+#define def_type_constructors(type, type_snake)                                \
+  void type_snake##_init(type *t, type_init_proto);                            \
+                                                                               \
+  type *type_snake##_new(Allocator *allocator, type_init_proto);               \
+                                                                               \
+  type type_snake(type_init_proto);
+#endif
+
+#ifdef XSTD_IMPLEMENTATION
+#define def_type_constructors_no_args(type, type_snake)                        \
+  void type_snake##_init(type *t);                                             \
+  void type_snake##_init(type *t) {                                            \
+    assert(t != NULL);                                                         \
+    *t = (type){0};                                                            \
+    type_init                                                                  \
+  }                                                                            \
+                                                                               \
+  type *type_snake##_new(Allocator *allocator);                                \
+  type *type_snake##_new(Allocator *allocator) {                               \
+    type *t = alloc_malloc(allocator, sizeof(type));                           \
+    type_snake##_init(t);                                                      \
+    return t;                                                                  \
+  }                                                                            \
+                                                                               \
+  type type_snake(void);                                                       \
+  type type_snake(void) {                                                      \
+    type t = {0};                                                              \
+    type_snake##_init(&t);                                                     \
+    return t;                                                                  \
+  }
+#else
+#define def_type_constructors_no_args(type, type_snake)                        \
+  void type_snake##_init(type *t);                                             \
+                                                                               \
+  type *type_snake##_new(Allocator *allocator);                                \
+                                                                               \
+  type type_snake(void);
+#endif
+
+#endif
+#ifndef XSTD_IFACE_H_INCLUDE
+#define XSTD_IFACE_H_INCLUDE
+
+// Used by iface_call macros.
+#include <stdint.h>
+
+
+// InterfaceImpl define an implementation of an interface.
+typedef void *InterfaceImpl;
+
+// Define an interface type and its virtual table.
+#define iface_def(name, vtable)                                                \
+  typedef struct {                                                             \
+    vtable *vtable_;                                                           \
+    size_t offset_;                                                            \
+  } name
+
+// Call and a method of an iface instance.
+
+#define iface_call(instance, method, ...)                                      \
+  instance->vtable_->method((void *)((uintptr_t)instance + instance->offset_), \
+                            __VA_ARGS__)
+
+#define iface_call_empty(instance, method)                                     \
+  instance->vtable_->method((void *)((uintptr_t)instance + instance->offset_))
+
+#define iface_impl_def_empty(interface, name)                                  \
+  typedef struct {                                                             \
+    interface iface;                                                           \
+  } name
+
+#define iface_impl_def(interface, name, impl_fields)                           \
+  typedef struct {                                                             \
+    interface iface;                                                           \
+    impl_fields body_;                                                         \
+  } name
+
+#define iface_impl_init(instance, field, vtable, body)                         \
+  do {                                                                         \
+    (instance)->field = (typeof((instance)->field)){                           \
+        .vtable_ = vtable,                                                     \
+        .offset_ = offsetof(typeof(*instance), body_) -                        \
+                   offsetof(typeof(*instance), field)};                        \
+    (instance)->body_ = (body);                                                \
+  } while (0);
+
+#define iface_empty_impl_init(instance, field, vtable)                         \
+  do {                                                                         \
+    (instance)->field = (typeof((instance)->field)){                           \
+        .vtable_ = vtable,                                                     \
+        .offset_ = 0,                                                          \
+    };                                                                         \
+  } while (0);
+
+#define typeof_iface_impl(impl_type) typeof(((impl_type *){0})->body_)
+
+#define cast_iface_impl_ptr(impl_type, ptr) (typeof_iface_impl(impl_type) *)ptr
+#define cast_iface_impl(impl_type, ptr) *cast_iface_impl_ptr(impl_type, ptr)
+
+// Merged interfaces.
+
+#define iface_merge_def(name, ...)                                             \
+  typedef struct {                                                             \
+    __VA_ARGS__;                                                               \
+  } name
+
+#endif
 // Single file header allocator interface / vtable
 // from xstd (https://github.com/negrel/xstd.h).
 
@@ -24,18 +167,15 @@
 #include <stdlib.h>
 #endif
 
-struct xstd_allocator_vtable {
-  void *(*malloc)(void *allocator, size_t size);
-  void (*free)(void *allocator, void *ptr);
-  void *(*calloc)(void *allocator, size_t nmemb, size_t size);
-  void *(*realloc)(void *allocator, void *ptr, size_t newsize);
-};
 
 // Allocator interface.
-typedef struct {
-  struct xstd_allocator_vtable *vtable_;
-  size_t offset_;
-} Allocator;
+iface_def(
+    Allocator, struct xstd_allocator_vtable {
+      void *(*malloc)(InterfaceImpl allocator, size_t size);
+      void (*free)(InterfaceImpl allocator, void *ptr);
+      void *(*calloc)(InterfaceImpl allocator, size_t nmemb, size_t size);
+      void *(*realloc)(InterfaceImpl allocator, void *ptr, size_t newsize);
+    });
 
 // alloc_malloc() allocates size bytes and returns a pointer to the allocated
 // memory. The memory is not initialized.
@@ -43,8 +183,7 @@ void *alloc_malloc(Allocator *, size_t);
 
 #ifdef XSTD_IMPLEMENTATION
 void *alloc_malloc(Allocator *allocator, size_t size) {
-  void *ptr = allocator->vtable_->malloc(
-      (void *)((uintptr_t)allocator + allocator->offset_), size);
+  void *ptr = iface_call(allocator, malloc, size);
   assert(ptr != NULL);
   return ptr;
 }
@@ -56,8 +195,7 @@ void alloc_free(Allocator *allocator, void *ptr);
 
 #ifdef XSTD_IMPLEMENTATION
 void alloc_free(Allocator *allocator, void *ptr) {
-  allocator->vtable_->free((void *)((uintptr_t)allocator + allocator->offset_),
-                           ptr);
+  iface_call(allocator, free, ptr);
 }
 #endif
 
@@ -68,8 +206,7 @@ void *alloc_calloc(Allocator *allocator, size_t nmemb, size_t size);
 
 #ifdef XSTD_IMPLEMENTATION
 void *alloc_calloc(Allocator *allocator, size_t nmemb, size_t size) {
-  void *ptr = allocator->vtable_->calloc(
-      (void *)((uintptr_t)allocator + allocator->offset_), nmemb, size);
+  void *ptr = iface_call(allocator, calloc, nmemb, size);
   assert(ptr != NULL);
   return ptr;
 }
@@ -84,8 +221,7 @@ void *alloc_realloc(Allocator *allocator, void *ptr, size_t newsize);
 
 #ifdef XSTD_IMPLEMENTATION
 void *alloc_realloc(Allocator *allocator, void *ptr, size_t newsize) {
-  ptr = allocator->vtable_->realloc(
-      (void *)((uintptr_t)allocator + allocator->offset_), ptr, newsize);
+  ptr = iface_call(allocator, realloc, ptr, newsize);
   assert(ptr != NULL);
   return ptr;
 }
@@ -94,23 +230,23 @@ void *alloc_realloc(Allocator *allocator, void *ptr, size_t newsize) {
 Allocator *g_libc_allocator;
 
 #ifdef XSTD_IMPLEMENTATION
-static void *libc_malloc(void *alloc, size_t size) {
+static void *libc_malloc(InterfaceImpl alloc, size_t size) {
   (void)alloc;
   return malloc(size);
 }
 
-static void libc_free(void *alloc, void *ptr) {
+static void libc_free(InterfaceImpl alloc, void *ptr) {
   (void)alloc;
   free(ptr);
 }
 
-static void *libc_calloc(void *alloc, size_t nmemb, size_t size) {
+static void *libc_calloc(InterfaceImpl alloc, size_t nmemb, size_t size) {
   (void)alloc;
   void *ptr = calloc(nmemb, size);
   return ptr;
 }
 
-static void *libc_realloc(void *alloc, void *ptr, size_t size) {
+static void *libc_realloc(InterfaceImpl alloc, void *ptr, size_t size) {
   (void)alloc;
   return realloc(ptr, size);
 }
@@ -140,40 +276,31 @@ Allocator *g_libc_allocator = &libc_allocator;
 #ifdef XSTD_IMPLEMENTATION
 #include <errno.h>
 #include <stddef.h>
-#include <stdint.h>
 #endif
 
-
-struct xstd_closer_vtable {
-  void (*close)(void *closer, int *error);
-};
 
 // Closer interface / virtual table. Closer is the interface that wraps basic
 // Close method. The behavior of Close after the first call is undefined.
 // Specific implementations may document their own behavior.
-typedef struct {
-  struct xstd_closer_vtable *vtable_;
-  size_t offset_;
-} Closer;
+iface_def(
+    Closer, struct xstd_closer_vtable {
+      void (*close)(InterfaceImpl closer, int *error);
+    });
 
 // closer_close calls the close method of the closer.
 void closer_close(Closer *closer, int *error);
 
 #ifdef XSTD_IMPLEMENTATION
 void closer_close(Closer *closer, int *error) {
-  closer->vtable_->close((void *)((uintptr_t)closer + closer->offset_), error);
+  iface_call(closer, close, error);
 }
 #endif
 
 // NopCloser is a no-op Closer implementation.
-typedef struct {
-  Closer closer;
-} NopCloser;
-
-void nop_closer_close(void *_, int *error);
+iface_impl_def_empty(Closer, NopCloser);
 
 #ifdef XSTD_IMPLEMENTATION
-void nop_closer_close(void *_, int *error) {
+static void nop_closer_close(void *_, int *error) {
   (void)_;
   (void)error;
 }
@@ -185,26 +312,20 @@ struct xstd_closer_vtable nop_closer_vtable;
 struct xstd_closer_vtable nop_closer_vtable = {.close = &nop_closer_close};
 #endif
 
-NopCloser nop_closer(void);
+// Generate nop_closer_init, nop_closer_new and nop_closer constructors.
+
+#undef type_init
+#define type_init                                                              \
+  { iface_empty_impl_init(t, iface, &nop_closer_vtable) }
+
+def_type_constructors_no_args(NopCloser, nop_closer)
+
+    // FileCloser wraps FILE and implements the Closer interface.
+    iface_impl_def(Closer, FileCloser, FILE *);
 
 #ifdef XSTD_IMPLEMENTATION
-NopCloser nop_closer(void) {
-  NopCloser nc = {0};
-  nc.closer.vtable_ = &nop_closer_vtable;
-  nc.closer.offset_ = 0;
-  return nc;
-}
-#endif
-
-// FileCloser wraps FILE and implements the Closer interface.
-typedef struct {
-  Closer closer;
-  FILE *f_;
-} FileCloser;
-
-#ifdef XSTD_IMPLEMENTATION
-static void file_closer_close(void *file, int *error) {
-  FILE *f = *(void **)file;
+static void file_closer_close(InterfaceImpl impl, int *error) {
+  typeof_iface_impl(FileCloser) f = cast_iface_impl(FileCloser, impl);
   if (!fclose(f) && error != NULL)
     *error = errno;
 }
@@ -216,39 +337,17 @@ struct xstd_closer_vtable file_closer_vtable;
 struct xstd_closer_vtable file_closer_vtable = {.close = &file_closer_close};
 #endif
 
-// file_closer_init initializes the given FileCloser.
-void file_closer_init(FileCloser *fcloser, FILE *f);
+// Generate file_closer_init, file_closer_new and file_closer constructors.
 
-#ifdef XSTD_IMPLEMENTATION
-void file_closer_init(FileCloser *fcloser, FILE *f) {
-  *fcloser = (FileCloser){0};
-  fcloser->closer.vtable_ = &file_closer_vtable;
-  fcloser->closer.offset_ = offsetof(FileCloser, f_);
-  fcloser->f_ = f;
-}
-#endif
+#undef type_init_proto
+#undef type_init_args
+#undef type_init
+#define type_init_proto FILE *f
+#define type_init_args f
+#define type_init                                                              \
+  { iface_impl_init(t, iface, &file_closer_vtable, f) }
 
-// file_closer_new allocates, initiliazes and returns a new FileCloser.
-FileCloser *file_closer_new(Allocator *allocator, FILE *f);
-
-#ifdef XSTD_IMPLEMENTATION
-FileCloser *file_closer_new(Allocator *allocator, FILE *f) {
-  FileCloser *fcloser = alloc_malloc(allocator, sizeof(FileCloser));
-  file_closer_init(fcloser, f);
-  return fcloser;
-}
-#endif
-
-// file_closer initiliazes and returns a FileCloser that wraps the given file.
-FileCloser file_closer(FILE *f);
-
-#ifdef XSTD_IMPLEMENTATION
-FileCloser file_closer(FILE *f) {
-  FileCloser fcloser = {0};
-  file_closer_init(&fcloser, f);
-  return fcloser;
-}
-#endif
+def_type_constructors(FileCloser, file_closer)
 
 #endif
 #ifndef XSTD_IO_READER_H_INCLUDE
@@ -263,10 +362,6 @@ FileCloser file_closer(FILE *f) {
 #include <errno.h>
 #endif
 
-
-struct xstd_reader_vtable {
-  void (*read)(void *reader, uint8_t *p, size_t p_len, size_t *n, int *err);
-};
 
 // Reader is the interface that wraps the basic read method.
 //
@@ -296,10 +391,11 @@ struct xstd_reader_vtable {
 // EOF.
 //
 // Implementations must not retain p.
-typedef struct xstd_reader {
-  struct xstd_reader_vtable *vtable_;
-  size_t offset_;
-} Reader;
+iface_def(
+    Reader, struct xstd_reader_vtable {
+      void (*read)(InterfaceImpl reader, uint8_t *p, size_t p_len, size_t *n,
+                   int *err);
+    });
 
 // reader_read calls the read method of the reader.
 void reader_read(Reader *reader, uint8_t *p, size_t p_len, size_t *n, int *err);
@@ -307,22 +403,18 @@ void reader_read(Reader *reader, uint8_t *p, size_t p_len, size_t *n, int *err);
 #ifdef XSTD_IMPLEMENTATION
 void reader_read(Reader *reader, uint8_t *p, size_t p_len, size_t *n,
                  int *err) {
-  reader->vtable_->read((void *)((uintptr_t)reader + reader->offset_), p, p_len,
-                        n, err);
+  iface_call(reader, read, p, p_len, n, err);
 }
 #endif
 
 // FileReader wraps FILE and implements Reader.
-typedef struct {
-  Reader reader;
-  FILE *f_;
-} FileReader;
+iface_impl_def(Reader, FileReader, FILE *);
 
 // file_reader_read implements Reader.
 #ifdef XSTD_IMPLEMENTATION
-static void file_reader_read(void *file, uint8_t *p, size_t p_len, size_t *n,
-                             int *error) {
-  FILE *f = *(void **)file;
+static void file_reader_read(InterfaceImpl impl, uint8_t *p, size_t p_len,
+                             size_t *n, int *error) {
+  typeof_iface_impl(FileReader) f = cast_iface_impl(FileReader, impl);
   size_t read = fread(p, sizeof(*p), p_len, f);
   if (n != NULL)
     *n = read;
@@ -344,39 +436,18 @@ struct xstd_reader_vtable file_reader_vtable;
 struct xstd_reader_vtable file_reader_vtable = {.read = &file_reader_read};
 #endif
 
-// file_reader_init initializes the given FileReader.
-void file_reader_init(FileReader *freader, FILE *f);
+// Generate file_writer_init, file_writer_new and file_writer constructors.
 
-#ifdef XSTD_IMPLEMENTATION
-void file_reader_init(FileReader *freader, FILE *f) {
-  *freader = (FileReader){0};
-  freader->reader.vtable_ = &file_reader_vtable;
-  freader->reader.offset_ = offsetof(FileReader, f_);
-  freader->f_ = f;
-}
-#endif
+#undef type_init_proto
+#undef type_init_args
+#undef type_init
 
-// file_reader_new allocates, initializes and returns a new FileReader.
-FileReader *file_reader_new(Allocator *allocator, FILE *f);
+#define type_init_proto FILE *f
+#define type_init_args f
+#define type_init                                                              \
+  { iface_impl_init(t, iface, &file_reader_vtable, f) }
 
-#ifdef XSTD_IMPLEMENTATION
-FileReader *file_reader_new(Allocator *allocator, FILE *f) {
-  FileReader *freader = alloc_malloc(allocator, sizeof(FileReader));
-  file_reader_init(freader, f);
-  return freader;
-}
-#endif
-
-// file_reader initializes and returns a FileReader that wraps the given file.
-FileReader file_reader(FILE *f);
-
-#ifdef XSTD_IMPLEMENTATION
-FileReader file_reader(FILE *f) {
-  FileReader freader = {0};
-  file_reader_init(&freader, f);
-  return freader;
-}
-#endif
+def_type_constructors(FileReader, file_reader)
 
 #endif
 #ifndef XSTD_IO_WRITER_H_INCLUDE
@@ -392,10 +463,6 @@ FileReader file_reader(FILE *f) {
 #endif
 
 
-struct xstd_writer_vtable {
-  void (*write)(void *writer, uint8_t *p, size_t p_len, size_t *n, int *err);
-};
-
 // Writer is the interface that wraps the basic Write method.
 //
 // Write writes len(p) bytes from p to the underlying data stream. It returns
@@ -403,10 +470,11 @@ struct xstd_writer_vtable {
 // encountered that caused the write to stop early. Write must return a non-nil
 // error if it returns n < len(p). Write must not modify the slice data, even
 // temporarily.
-typedef struct {
-  struct xstd_writer_vtable *vtable_;
-  size_t offset_;
-} Writer;
+iface_def(
+    Writer, struct xstd_writer_vtable {
+      void (*write)(InterfaceImpl writer, uint8_t *p, size_t p_len, size_t *n,
+                    int *err);
+    });
 
 void writer_write(Writer *writer, uint8_t *p, size_t p_len, size_t *n,
                   int *error);
@@ -414,21 +482,18 @@ void writer_write(Writer *writer, uint8_t *p, size_t p_len, size_t *n,
 #ifdef XSTD_IMPLEMENTATION
 void writer_write(Writer *writer, uint8_t *p, size_t p_len, size_t *n,
                   int *error) {
-  writer->vtable_->write((void *)((uintptr_t)writer + writer->offset_), p,
-                         p_len, n, error);
+  iface_call(writer, write, p, p_len, n, error);
 }
 #endif
 
 // FileWriter wraps FILE and implements Writer.
-typedef struct {
-  Writer writer;
-  FILE *f_;
-} FileWriter;
+iface_impl_def(Writer, FileWriter, FILE *);
 
 #ifdef XSTD_IMPLEMENTATION
-static void file_writer_write(void *file, uint8_t *p, size_t p_len, size_t *n,
-                              int *error) {
-  FILE *f = *(void **)file;
+static void file_writer_write(InterfaceImpl impl, uint8_t *p, size_t p_len,
+                              size_t *n, int *error) {
+  typeof_iface_impl(FileWriter) f = cast_iface_impl(FileWriter, impl);
+
   size_t write = fwrite(p, sizeof(*p), p_len, f);
   if (n != NULL)
     *n = write;
@@ -451,39 +516,17 @@ struct xstd_writer_vtable file_writer_vtable;
 struct xstd_writer_vtable file_writer_vtable = {.write = &file_writer_write};
 #endif
 
-// file_writer_init initializes the given FileWriter.
-void file_writer_init(FileWriter *fw, FILE *f);
+// Generate file_writer_init, file_writer_new and file_writer constructors.
 
-#ifdef XSTD_IMPLEMENTATION
-void file_writer_init(FileWriter *fw, FILE *f) {
-  *fw = (FileWriter){0};
-  fw->writer.vtable_ = &file_writer_vtable;
-  fw->writer.offset_ = offsetof(FileWriter, f_);
-  fw->f_ = f;
-}
-#endif
+#undef type_init_proto
+#define type_init_proto FILE *f
+#undef type_init_args
+#define type_init_args f
+#undef type_init
+#define type_init                                                              \
+  { iface_impl_init(t, iface, &file_writer_vtable, f); }
 
-// file_writer_new allocates, initializes and returns a new FileWriter.
-FileWriter *file_writer_new(Allocator *allocator, FILE *f);
-
-#ifdef XSTD_IMPLEMENTATION
-FileWriter *file_writer_new(Allocator *allocator, FILE *f) {
-  FileWriter *fw = alloc_malloc(allocator, sizeof(FileWriter));
-  file_writer_init(fw, f);
-  return fw;
-}
-#endif
-
-// file_writer initializes and returns a FileWriter that wraps the given file.
-FileWriter file_writer(FILE *f);
-
-#ifdef XSTD_IMPLEMENTATION
-FileWriter file_writer(FILE *f) {
-  FileWriter fw = {0};
-  file_writer_init(&fw, f);
-  return fw;
-}
-#endif
+def_type_constructors(FileWriter, file_writer)
 
 #endif
 #ifndef XSTD_IO_READ_CLOSER_H_INCLUDE
@@ -495,121 +538,47 @@ FileWriter file_writer(FILE *f) {
 
 
 // ReadCloser is the interface that groups the basic Read and Close methods.
-typedef struct {
-  Reader reader;
-  Closer closer;
-} ReadCloser;
+iface_merge_def(ReadCloser, Reader reader; Closer closer);
 
 // FileReadCloser wraps FILE and implements ReadCloser.
-typedef struct {
-  ReadCloser read_closer;
-  FILE *f_;
-} FileReadCloser;
+iface_impl_def(ReadCloser, FileReadCloser, FILE *);
 
-// file_read_closer_init initializes the given FileReadCloser.
-void file_read_closer_init(FileReadCloser *frw, FILE *f);
+#undef type_init_proto
+#define type_init_proto FILE *f
+#undef type_init_args
+#define type_init_args f
+#undef type_init
+#define type_init                                                              \
+  {                                                                            \
+    iface_impl_init(t, iface.reader, &file_reader_vtable, f);                  \
+    iface_impl_init(t, iface.closer, &file_closer_vtable, f);                  \
+  }
 
-#ifdef XSTD_IMPLEMENTATION
-void file_read_closer_init(FileReadCloser *frw, FILE *f) {
-  *frw = (FileReadCloser){0};
-  frw->read_closer.reader.vtable_ = &file_reader_vtable;
-  frw->read_closer.reader.offset_ = offsetof(FileReadCloser, f_);
-
-  frw->read_closer.closer.vtable_ = &file_closer_vtable;
-  frw->read_closer.closer.offset_ =
-      offsetof(FileReadCloser, f_) -
-      offsetof(FileReadCloser, read_closer.closer);
-
-  frw->f_ = f;
-}
-#endif
-
-// file_read_closer allocates and initializes and returns a FileReadCloser that
-// wraps the given file.
-FileReadCloser *file_read_closer_new(Allocator *allocator, FILE *f);
-
-#ifdef XSTD_IMPLEMENTATION
-FileReadCloser *file_read_closer_new(Allocator *allocator, FILE *f) {
-  FileReadCloser *frw = alloc_malloc(allocator, sizeof(FileReadCloser));
-  file_read_closer_init(frw, f);
-  return frw;
-}
-#endif
-
-// file_read_closer initializes and returns a FileReadCloser that wraps the
-// given file.
-FileReadCloser file_read_closer(FILE *f);
-
-#ifdef XSTD_IMPLEMENTATION
-FileReadCloser file_read_closer(FILE *f) {
-  FileReadCloser frw = {0};
-  file_read_closer_init(&frw, f);
-  return frw;
-}
-#endif
+def_type_constructors(FileReadCloser, file_read_closer)
 
 #endif
 #ifndef XSTD_IO_READ_WRITER_H_INCLUDE
 #define XSTD_IO_READ_WRITER_H_INCLUDE
 
-#ifdef XSTD_IMPLEMENTATION
-#include <stddef.h>
-#endif
-
 
 // ReadWriter is the interface that groups the basic Read and Write methods.
-typedef struct {
-  Reader reader;
-  Writer writer;
-} ReadWriter;
+iface_merge_def(ReadWriter, Reader reader; Writer writer);
 
 // FileReadWriter wraps FILE and implements ReadWriter.
-typedef struct {
-  ReadWriter read_writer;
-  FILE *f_;
-} FileReadWriter;
+iface_impl_def(ReadWriter, FileReadWriter, FILE *);
 
-// file_read_writer_init initializes the given FileReadWriter.
-void file_read_writer_init(FileReadWriter *frw, FILE *f);
+#undef type_init_proto
+#define type_init_proto FILE *f
+#undef type_init_args
+#define type_init_args f
+#undef type_init
+#define type_init                                                              \
+  {                                                                            \
+    iface_impl_init(t, iface.reader, &file_reader_vtable, f);                  \
+    iface_impl_init(t, iface.writer, &file_writer_vtable, f);                  \
+  }
 
-#ifdef XSTD_IMPLEMENTATION
-void file_read_writer_init(FileReadWriter *frw, FILE *f) {
-  *frw = (FileReadWriter){0};
-  frw->read_writer.reader.vtable_ = &file_reader_vtable;
-  frw->read_writer.reader.offset_ = offsetof(FileReadWriter, f_);
-
-  frw->read_writer.writer.vtable_ = &file_writer_vtable;
-  frw->read_writer.writer.offset_ =
-      offsetof(FileReadWriter, f_) -
-      offsetof(FileReadWriter, read_writer.writer);
-
-  frw->f_ = f;
-}
-#endif
-
-// file_read_writer allocates and initializes and returns a FileReadWriter that
-// wraps the given file.
-FileReadWriter *file_read_writer_new(Allocator *allocator, FILE *f);
-
-#ifdef XSTD_IMPLEMENTATION
-FileReadWriter *file_read_writer_new(Allocator *allocator, FILE *f) {
-  FileReadWriter *frw = alloc_malloc(allocator, sizeof(FileReadWriter));
-  file_read_writer_init(frw, f);
-  return frw;
-}
-#endif
-
-// file_read_writer initializes and returns a FileReadWriter that wraps the
-// given file.
-FileReadWriter file_read_writer(FILE *f);
-
-#ifdef XSTD_IMPLEMENTATION
-FileReadWriter file_read_writer(FILE *f) {
-  FileReadWriter frw = {0};
-  file_read_writer_init(&frw, f);
-  return frw;
-}
-#endif
+def_type_constructors(FileReadWriter, file_read_writer)
 
 #endif
 #ifndef XSTD_IO_WRITE_CLOSER_H_INCLUDE
@@ -621,58 +590,26 @@ FileReadWriter file_read_writer(FILE *f) {
 
 
 // WriteCloser is the interface that groups the basic Write and Close methods.
-typedef struct {
-  Writer writer;
-  Closer closer;
-} WriteCloser;
+iface_merge_def(WriteCloser, Writer writer; Closer closer);
 
 // FileWriteCloser wraps FILE and implements WriteCloser.
-typedef struct {
-  WriteCloser write_closer;
-  FILE *f_;
-} FileWriteCloser;
+iface_impl_def(WriteCloser, FileWriteCloser, FILE *);
 
 // file_write_closer_init initializes the given FileWriteCloser.
 void file_write_closer_init(FileWriteCloser *frw, FILE *f);
 
-#ifdef XSTD_IMPLEMENTATION
-void file_write_closer_init(FileWriteCloser *frw, FILE *f) {
-  *frw = (FileWriteCloser){0};
-  frw->write_closer.writer.vtable_ = &file_writer_vtable;
-  frw->write_closer.writer.offset_ = offsetof(FileWriteCloser, f_);
+#undef type_init_proto
+#undef type_init_args
+#undef type_init
+#define type_init_proto FILE *f
+#define type_init_args f
+#define type_init                                                              \
+  {                                                                            \
+    iface_impl_init(t, iface.writer, &file_writer_vtable, f);                  \
+    iface_impl_init(t, iface.closer, &file_closer_vtable, f);                  \
+  }
 
-  frw->write_closer.closer.vtable_ = &file_closer_vtable;
-  frw->write_closer.closer.offset_ =
-      offsetof(FileWriteCloser, f_) -
-      offsetof(FileWriteCloser, write_closer.closer);
-
-  frw->f_ = f;
-}
-#endif
-
-// file_write_closer allocates and initializes and returns a FileWriteCloser
-// that wraps the given file.
-FileWriteCloser *file_write_closer_new(Allocator *allocator, FILE *f);
-
-#ifdef XSTD_IMPLEMENTATION
-FileWriteCloser *file_write_closer_new(Allocator *allocator, FILE *f) {
-  FileWriteCloser *frw = alloc_malloc(allocator, sizeof(FileWriteCloser));
-  file_write_closer_init(frw, f);
-  return frw;
-}
-#endif
-
-// file_write_closer initializes and returns a FileWriteCloser that wraps the
-// given file.
-FileWriteCloser file_write_closer(FILE *f);
-
-#ifdef XSTD_IMPLEMENTATION
-FileWriteCloser file_write_closer(FILE *f) {
-  FileWriteCloser frw = {0};
-  file_write_closer_init(&frw, f);
-  return frw;
-}
-#endif
+def_type_constructors(FileWriteCloser, file_write_closer)
 
 #endif
 #ifndef XSTD_BUF_READER_H_INCLUDE
@@ -686,20 +623,16 @@ FileWriteCloser file_write_closer(FILE *f) {
 #endif
 
 
-struct xstd_buf_reader_body {
-  Reader *reader;
-  uint8_t *buf;
-  size_t buf_len;
-  int read_err;
-  size_t read;
-  size_t write;
-};
-
 // BufReader wraps a Reader
-typedef struct {
-  Reader reader;
-  struct xstd_buf_reader_body body_;
-} BufReader;
+iface_impl_def(
+    Reader, BufReader, struct {
+      Reader *reader;
+      uint8_t *buf;
+      size_t buf_len;
+      int read_err;
+      size_t read;
+      size_t write;
+    });
 
 size_t buf_reader_buffered(BufReader *buf_reader);
 
@@ -710,13 +643,13 @@ size_t buf_reader_buffered(BufReader *buf_reader) {
 #endif
 
 #ifdef XSTD_IMPLEMENTATION
-static void buf_reader_read(void *body, uint8_t *p, size_t p_len, size_t *n,
-                            int *err) {
+static void buf_reader_read(InterfaceImpl impl, uint8_t *p, size_t p_len,
+                            size_t *n, int *err) {
   // p is empty.
   if (p_len == 0)
     return;
 
-  struct xstd_buf_reader_body *b = (struct xstd_buf_reader_body *)body;
+  typeof_iface_impl(BufReader) *b = cast_iface_impl_ptr(BufReader, impl);
 
   size_t buffered = b->read - b->write;
 
@@ -765,43 +698,22 @@ struct xstd_reader_vtable buf_reader_vtable;
 struct xstd_reader_vtable buf_reader_vtable = {.read = &buf_reader_read};
 #endif
 
-void buf_reader_init(BufReader *buf_reader, Reader *r, uint8_t *buf,
-                     size_t buf_len);
+#undef type_init_proto
+#undef type_init_args
+#undef type_init
+#define type_init_proto Reader *r, uint8_t *buf, size_t buf_len
+#define type_init_args r, buf, buf_len
+#define type_init                                                              \
+  {                                                                            \
+    iface_impl_init(t, iface, &buf_reader_vtable,                              \
+                    ((typeof_iface_impl(BufReader)){                           \
+                        .reader = r,                                           \
+                        .buf = buf,                                            \
+                        .buf_len = buf_len,                                    \
+                    }));                                                       \
+  }
 
-#ifdef XSTD_IMPLEMENTATION
-void buf_reader_init(BufReader *buf_reader, Reader *r, uint8_t *buf,
-                     size_t buf_len) {
-  *buf_reader = (BufReader){0};
-  buf_reader->reader.vtable_ = &buf_reader_vtable;
-  buf_reader->reader.offset_ = offsetof(BufReader, body_);
-
-  buf_reader->body_.reader = r;
-  buf_reader->body_.buf = buf;
-  buf_reader->body_.buf_len = buf_len;
-}
-#endif
-
-BufReader *buf_reader_new(Allocator *allocator, Reader *r, uint8_t *buf,
-                          size_t buf_len);
-
-#ifdef XSTD_IMPLEMENTATION
-BufReader *buf_reader_new(Allocator *allocator, Reader *r, uint8_t *buf,
-                          size_t buf_len) {
-  BufReader *buf_reader = alloc_malloc(allocator, sizeof(BufReader));
-  buf_reader_init(buf_reader, r, buf, buf_len);
-  return buf_reader;
-}
-#endif
-
-BufReader buf_reader(Reader *r, uint8_t *buf, size_t buf_len);
-
-#ifdef XSTD_IMPLEMENTATION
-BufReader buf_reader(Reader *r, uint8_t *buf, size_t buf_len) {
-  BufReader buf_reader = {0};
-  buf_reader_init(&buf_reader, r, buf, buf_len);
-  return buf_reader;
-}
-#endif
+def_type_constructors(BufReader, buf_reader)
 
 #endif
 #ifndef XSTD_SLICE_H_INCLUDE
@@ -844,7 +756,6 @@ Slice slice(uint8_t *data, size_t length) {
 #include <stdint.h>
 #include <string.h>
 
-#define XSTD_IMPLEMENTATION
 #ifdef XSTD_IMPLEMENTATION
 #include <assert.h>
 #endif
@@ -915,12 +826,15 @@ bool bytes_buffer_resize(BytesBuffer *buffer, size_t new_capacity) {
 
   buffer->bytes_ = bytes;
   buffer->cap_ = new_capacity;
+
+  if (buffer->cap_ < buffer->len_)
+    buffer->len_ = buffer->cap_;
   return true;
 }
 #endif
 
-#define bytes_buffer_append_char(buffer, data)                                 \
-  bytes_buffer_append_bytes(buffer, data, sizeof(char))
+#define bytes_buffer_append(buffer, data)                                      \
+  bytes_buffer_append_bytes(buffer, data, sizeof(typeof(*data)))
 
 size_t bytes_buffer_append_bytes(BytesBuffer *buffer, void *data, size_t size);
 
@@ -945,9 +859,6 @@ size_t bytes_buffer_append_bytes(BytesBuffer *buffer, void *data, size_t size) {
 }
 #endif
 
-size_t bytes_buffer_append(BytesBuffer *buffer, void *data, size_t nmemb,
-                           size_t size);
-
 void bytes_buffer_fill(BytesBuffer *buffer, int c);
 
 #ifdef XSTD_IMPLEMENTATION
@@ -957,22 +868,20 @@ void bytes_buffer_fill(BytesBuffer *buffer, int c) {
 }
 #endif
 
-#ifdef XSTD_IMPLEMENTATION
-size_t bytes_buffer_append(BytesBuffer *buffer, void *data, size_t nmemb,
-                           size_t size) {
-  size_t total_size = nmemb * size;
-  if (total_size / size != nmemb || total_size + buffer->cap_ < total_size)
-    return 0; // Overflow.
+void bytes_buffer_fill_available(BytesBuffer *buffer, int c);
 
-  return bytes_buffer_append_bytes(buffer, data, total_size);
+#ifdef XSTD_IMPLEMENTATION
+void bytes_buffer_fill_available(BytesBuffer *buffer, int c) {
+  memset(&buffer->bytes_[buffer->len_], c, bytes_buffer_available(buffer));
+  buffer->len_ = buffer->cap_;
 }
 #endif
 
-#define bytes_buffer_set(buffer, index, value)                                 \
-  (bytes_buffer_get(buffer, index, typeof(value)) = value)
-
 #define bytes_buffer_get(buffer, index, type)                                  \
   *(type *)(bytes_buffer_get_(buffer, index, sizeof(type)))
+
+#define bytes_buffer_get_ptr(buffer, index, type)                              \
+  ((type *)(bytes_buffer_get_(buffer, index, sizeof(type))))
 
 void *bytes_buffer_get_(const BytesBuffer *buffer, size_t index,
                         size_t elem_size);
@@ -1014,10 +923,10 @@ BytesBuffer bytes_buffer(Allocator *allocator) {
 }
 #endif
 
-void bytes_buffer_deinit(BytesBuffer *buf);
+void bytes_buffer_destroy(BytesBuffer *buf);
 
 #ifdef XSTD_IMPLEMENTATION
-void bytes_buffer_deinit(BytesBuffer *buf) {
+void bytes_buffer_destroy(BytesBuffer *buf) {
   alloc_free(buf->allocator_, buf->bytes_);
 }
 #endif
@@ -1029,7 +938,7 @@ void bytes_buffer_free(BytesBuffer *buf) {
   if (buf == NULL)
     return;
 
-  bytes_buffer_deinit(buf);
+  bytes_buffer_destroy(buf);
   alloc_free(buf->allocator_, buf);
 }
 #endif
@@ -1131,9 +1040,6 @@ BytesBufferWriter bytes_buffer_writer(BytesBuffer *buffer) {
 #endif
 
 #endif
-// Single file header iterator interface / vtable
-// from xstd (https://github.com/negrel/xstd.h).
-
 #ifndef XSTD_ITER_H_INCLUDE
 #define XSTD_ITER_H_INCLUDE
 
@@ -1142,15 +1048,9 @@ BytesBufferWriter bytes_buffer_writer(BytesBuffer *buffer) {
 #include <string.h>
 
 
-struct xstd_iterator_vtable {
-  void *(*next)(void *);
-};
-
 // Iterator interface.
-typedef struct xstd_iterator {
-  struct xstd_iterator_vtable *vtable_;
-  size_t offset_;
-} Iterator;
+iface_def(
+    Iterator, struct xstd_iterator_vtable { void *(*next)(InterfaceImpl); });
 
 #define iter_foreach(iter, type, iterator)                                     \
   for (                                                                        \
@@ -1168,34 +1068,31 @@ typedef struct xstd_iterator {
 void *iter_next(Iterator *);
 
 #ifdef XSTD_IMPLEMENTATION
-void *iter_next(Iterator *iter) {
-  return iter->vtable_->next((void *)((uintptr_t)iter + iter->offset_));
-}
+void *iter_next(Iterator *iter) { return iface_call_empty(iter, next); }
 #endif
 
 #define range_foreach(iterator, from, to, step)                                \
   for (struct {                                                                \
          short i;                                                              \
          RangeIterator iter;                                                   \
-       } tmp = {.i = 0, .iter = range_iter(from, to, step)};                   \
+       } tmp = {.i = 0, .iter = range_iterator(from, to, step)};               \
        tmp.i == 0; tmp.i = 1)                                                  \
   iter_foreach((Iterator *)&tmp.iter, size_t *, iterator)
 
 #define range_to_foreach(i, to) range_foreach(i, 0, to, 1)
 #define range_from_to_foreach(i, from, to) range_foreach(i, from, to, 1)
 
-struct xstd_range_iter_body {
-  int64_t value, end, step;
-};
-
-typedef struct xstd_range_iter {
-  Iterator iterator;
-  struct xstd_range_iter_body body_;
-} RangeIterator;
+iface_impl_def(
+    Iterator, RangeIterator, struct {
+      int64_t value;
+      int64_t end;
+      int64_t step;
+    });
 
 #ifdef XSTD_IMPLEMENTATION
-static void *range_iterator_next(void *body) {
-  struct xstd_range_iter_body *b = (struct xstd_range_iter_body *)body;
+static void *range_iterator_next(InterfaceImpl impl) {
+  typeof_iface_impl(RangeIterator) *b =
+      cast_iface_impl_ptr(RangeIterator, impl);
 
   b->value += b->step;
   if (b->value >= b->end) {
@@ -1207,50 +1104,30 @@ static void *range_iterator_next(void *body) {
 }
 #endif
 
-struct xstd_iterator_vtable xstd_range_iterator_vtable;
+struct xstd_iterator_vtable range_iterator_vtable;
 
 #ifdef XSTD_IMPLEMENTATION
-struct xstd_iterator_vtable xstd_range_iterator_vtable = {
+struct xstd_iterator_vtable range_iterator_vtable = {
     .next = &range_iterator_next,
 };
 #endif
 
-void range_iterator_init(RangeIterator *range_iterator, int64_t start,
-                         int64_t end, int64_t step);
+#undef type_init_proto
+#undef type_init_args
+#undef type_init
+#define type_init_proto int64_t start, int64_t end, int64_t step
+#define type_init_args start, end, step
+#define type_init                                                              \
+  {                                                                            \
+    iface_impl_init(t, iface, &range_iterator_vtable,                          \
+                    ((typeof_iface_impl(RangeIterator)){                       \
+                        .end = end,                                            \
+                        .step = step,                                          \
+                        .value = start - step,                                 \
+                    }))                                                        \
+  }
 
-#ifdef XSTD_IMPLEMENTATION
-void range_iterator_init(RangeIterator *range_iterator, int64_t start,
-                         int64_t end, int64_t step) {
-  *range_iterator = (RangeIterator){0};
-  range_iterator->iterator.vtable_ = &xstd_range_iterator_vtable;
-  range_iterator->iterator.offset_ = offsetof(RangeIterator, body_);
-  range_iterator->body_.end = end;
-  range_iterator->body_.step = step;
-  range_iterator->body_.value = start - step;
-}
-#endif
-
-RangeIterator *range_iterator_new(Allocator *allocator, int64_t start,
-                                  int64_t end, int64_t step);
-
-#ifdef XSTD_IMPLEMENTATION
-RangeIterator *range_iterator_new(Allocator *allocator, int64_t start,
-                                  int64_t end, int64_t step) {
-  RangeIterator *ri = alloc_malloc(allocator, sizeof(RangeIterator));
-  range_iterator_init(ri, start, end, step);
-  return ri;
-}
-#endif
-
-RangeIterator range_iter(int64_t start, int64_t end, int64_t step);
-
-#ifdef XSTD_IMPLEMENTATION
-RangeIterator range_iter(int64_t start, int64_t end, int64_t step) {
-  RangeIterator ri = {0};
-  range_iterator_init(&ri, start, end, step);
-  return ri;
-}
-#endif
+def_type_constructors(RangeIterator, range_iterator)
 
 #endif
 #ifndef XSTD_ARENA_H_INCLUDE
@@ -1259,23 +1136,18 @@ RangeIterator range_iter(int64_t start, int64_t end, int64_t step) {
 #include <stddef.h>
 
 #ifdef XSTD_IMPLEMENTATION
-#include <assert.h>
 #include <stdint.h>
 #endif
 
 
-struct xstd_arena_allocator_body {
-  Allocator *parent_allocator_;
-  size_t arena_size_;
-  struct xstd_arena *arena_list_;
-  size_t cursor_;
-};
-
 // ArenaAllocator is an arena allocator.
-typedef struct xstd_arena_allocator {
-  Allocator allocator;
-  struct xstd_arena_allocator_body body_;
-} ArenaAllocator;
+iface_impl_def(
+    Allocator, ArenaAllocator, struct {
+      Allocator *parent_allocator_;
+      size_t arena_size_;
+      struct xstd_arena *arena_list_;
+      size_t cursor_;
+    });
 
 struct xstd_arena {
   // Header
@@ -1289,9 +1161,9 @@ void arena_allocator_init(ArenaAllocator *arena, Allocator *parent,
                           size_t arena_size);
 
 #ifdef XSTD_IMPLEMENTATION
-static void *arena_calloc(void *b, size_t nmemb, size_t size) {
-  struct xstd_arena_allocator_body *arena_body =
-      (struct xstd_arena_allocator_body *)b;
+static void *arena_calloc(InterfaceImpl impl, size_t nmemb, size_t size) {
+  typeof_iface_impl(ArenaAllocator) *arena_body =
+      cast_iface_impl_ptr(ArenaAllocator, impl);
 
   // Detect overflow.
   size_t alloc_size = nmemb * size;
@@ -1361,51 +1233,46 @@ static void arena_free(void *allocator, void *ptr) {
   (void)allocator;
   (void)ptr;
 }
+#endif
 
-static struct xstd_allocator_vtable arena_allocator_vtable = {
+struct xstd_allocator_vtable arena_allocator_vtable;
+
+#ifdef XSTD_IMPLEMENTATION
+struct xstd_allocator_vtable arena_allocator_vtable = {
     .malloc = &arena_malloc,
     .free = &arena_free,
     .calloc = &arena_calloc,
     .realloc = &arena_realloc,
 };
-
-void arena_allocator_init(ArenaAllocator *arena, Allocator *parent,
-                          size_t arena_size) {
-  assert(arena_size > sizeof(void *) &&
-         "arena size must be greater than size of a pointer");
-
-  arena->body_.parent_allocator_ = parent;
-  arena->body_.arena_size_ = arena_size;
-  arena->body_.arena_list_ = NULL;
-  arena->allocator = (Allocator){0};
-  arena->allocator.vtable_ = &arena_allocator_vtable;
-  arena->allocator.offset_ = offsetof(ArenaAllocator, body_);
-}
 #endif
 
-ArenaAllocator arena_allocator(Allocator *parent, size_t arena_size);
+#undef type_init_proto
+#undef type_init_args
+#undef type_init
+#define type_init_proto Allocator *parent, size_t arena_size
+#define type_init_args parent, arena_size
+#define type_init                                                              \
+  {                                                                            \
+    iface_impl_init(t, iface, &arena_allocator_vtable,                         \
+                    ((typeof_iface_impl(ArenaAllocator)){                      \
+                        .parent_allocator_ = parent,                           \
+                        .arena_size_ = arena_size,                             \
+                    }))                                                        \
+  }
+
+def_type_constructors(ArenaAllocator, arena_allocator)
+
+    void arena_alloc_destroy(ArenaAllocator *arena);
 
 #ifdef XSTD_IMPLEMENTATION
-ArenaAllocator arena_allocator(Allocator *parent, size_t arena_size) {
-  ArenaAllocator alloc = {0};
-  arena_allocator_init(&alloc, parent, arena_size);
-  return alloc;
-}
-#endif
-
-void arena_alloc_reset(ArenaAllocator *arena);
-
-#ifdef XSTD_IMPLEMENTATION
-void arena_alloc_reset(ArenaAllocator *arena_alloc) {
+void arena_alloc_destroy(ArenaAllocator *arena_alloc) {
   struct xstd_arena **arena = &arena_alloc->body_.arena_list_;
   while (*arena != NULL) {
     struct xstd_arena *a = *arena;
     *arena = a->next;
     alloc_free(arena_alloc->body_.parent_allocator_, a);
   }
-
-  arena_allocator_init(arena_alloc, arena_alloc->body_.parent_allocator_,
-                       arena_alloc->body_.arena_size_);
+  arena_alloc->body_.arena_list_ = NULL;
 }
 #endif
 

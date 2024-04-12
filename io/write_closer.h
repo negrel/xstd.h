@@ -1,66 +1,35 @@
 #ifndef XSTD_IO_WRITE_CLOSER_H_INCLUDE
 #define XSTD_IO_WRITE_CLOSER_H_INCLUDE
 
+#include "constructor.h"
 #ifdef XSTD_IMPLEMENTATION
 #include <stddef.h>
 #endif
 
-#include "alloc.h"
+#include "iface.h"
 #include "io/closer.h"
 #include "io/writer.h"
 
 // WriteCloser is the interface that groups the basic Write and Close methods.
-typedef struct {
-  Writer writer;
-  Closer closer;
-} WriteCloser;
+iface_merge_def(WriteCloser, Writer writer; Closer closer);
 
 // FileWriteCloser wraps FILE and implements WriteCloser.
-typedef struct {
-  WriteCloser write_closer;
-  FILE *f_;
-} FileWriteCloser;
+iface_impl_def(WriteCloser, FileWriteCloser, FILE *);
 
 // file_write_closer_init initializes the given FileWriteCloser.
 void file_write_closer_init(FileWriteCloser *frw, FILE *f);
 
-#ifdef XSTD_IMPLEMENTATION
-void file_write_closer_init(FileWriteCloser *frw, FILE *f) {
-  *frw = (FileWriteCloser){0};
-  frw->write_closer.writer.vtable_ = &file_writer_vtable;
-  frw->write_closer.writer.offset_ = offsetof(FileWriteCloser, f_);
+#undef type_init_proto
+#undef type_init_args
+#undef type_init
+#define type_init_proto FILE *f
+#define type_init_args f
+#define type_init                                                              \
+  {                                                                            \
+    iface_impl_init(t, iface.writer, &file_writer_vtable, f);                  \
+    iface_impl_init(t, iface.closer, &file_closer_vtable, f);                  \
+  }
 
-  frw->write_closer.closer.vtable_ = &file_closer_vtable;
-  frw->write_closer.closer.offset_ =
-      offsetof(FileWriteCloser, f_) -
-      offsetof(FileWriteCloser, write_closer.closer);
-
-  frw->f_ = f;
-}
-#endif
-
-// file_write_closer allocates and initializes and returns a FileWriteCloser
-// that wraps the given file.
-FileWriteCloser *file_write_closer_new(Allocator *allocator, FILE *f);
-
-#ifdef XSTD_IMPLEMENTATION
-FileWriteCloser *file_write_closer_new(Allocator *allocator, FILE *f) {
-  FileWriteCloser *frw = alloc_malloc(allocator, sizeof(FileWriteCloser));
-  file_write_closer_init(frw, f);
-  return frw;
-}
-#endif
-
-// file_write_closer initializes and returns a FileWriteCloser that wraps the
-// given file.
-FileWriteCloser file_write_closer(FILE *f);
-
-#ifdef XSTD_IMPLEMENTATION
-FileWriteCloser file_write_closer(FILE *f) {
-  FileWriteCloser frw = {0};
-  file_write_closer_init(&frw, f);
-  return frw;
-}
-#endif
+def_type_constructors(FileWriteCloser, file_write_closer)
 
 #endif

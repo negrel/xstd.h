@@ -54,7 +54,7 @@ START_TEST(test_arena_malloc) {
   ck_assert(arena.body_.arena_list_->next->next->next->next == NULL);
   *ptr = 5;
 
-  arena_alloc_reset(&arena);
+  arena_alloc_destroy(&arena);
 }
 END_TEST
 
@@ -106,7 +106,7 @@ START_TEST(test_arena_calloc) {
   ck_assert(arena.body_.arena_list_->next->next->next->next == NULL);
   *ptr = 5;
 
-  arena_alloc_reset(&arena);
+  arena_alloc_destroy(&arena);
 }
 END_TEST
 
@@ -158,7 +158,7 @@ START_TEST(test_arena_realloc) {
   ck_assert(arena.body_.arena_list_->next->next->next->next == NULL);
   *ptr = 5;
 
-  arena_alloc_reset(&arena);
+  arena_alloc_destroy(&arena);
 }
 END_TEST
 
@@ -180,7 +180,7 @@ START_TEST(test_arena_free) {
 
   ck_assert_int_eq(*ptr, ptr_val);
 
-  arena_alloc_reset(&arena);
+  arena_alloc_destroy(&arena);
 }
 END_TEST
 

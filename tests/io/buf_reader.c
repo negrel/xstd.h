@@ -16,8 +16,8 @@ START_TEST(test_buf_reader) {
   FileReader freader = file_reader(f);
 
   uint8_t breader_buf[128] = {0};
-  BufReader breader = buf_reader(&freader.reader, &breader_buf[0], 128);
-  Reader *reader = &breader.reader;
+  BufReader breader = buf_reader(&freader.iface, &breader_buf[0], 128);
+  Reader *reader = &breader.iface;
 
   uint8_t buf[32] = {0};
   size_t read = 0;

@@ -10,11 +10,8 @@
 #include <errno.h>
 #endif
 
-#include "alloc.h"
-
-struct xstd_writer_vtable {
-  void (*write)(void *writer, uint8_t *p, size_t p_len, size_t *n, int *err);
-};
+#include "constructor.h"
+#include "iface.h"
 
 // Writer is the interface that wraps the basic Write method.
 //
@@ -23,10 +20,11 @@ struct xstd_writer_vtable {
 // encountered that caused the write to stop early. Write must return a non-nil
 // error if it returns n < len(p). Write must not modify the slice data, even
 // temporarily.
-typedef struct {
-  struct xstd_writer_vtable *vtable_;
-  size_t offset_;
-} Writer;
+iface_def(
+    Writer, struct xstd_writer_vtable {
+      void (*write)(InterfaceImpl writer, uint8_t *p, size_t p_len, size_t *n,
+                    int *err);
+    });
 
 void writer_write(Writer *writer, uint8_t *p, size_t p_len, size_t *n,
                   int *error);
@@ -34,21 +32,18 @@ void writer_write(Writer *writer, uint8_t *p, size_t p_len, size_t *n,
 #ifdef XSTD_IMPLEMENTATION
 void writer_write(Writer *writer, uint8_t *p, size_t p_len, size_t *n,
                   int *error) {
-  writer->vtable_->write((void *)((uintptr_t)writer + writer->offset_), p,
-                         p_len, n, error);
+  iface_call(writer, write, p, p_len, n, error);
 }
 #endif
 
 // FileWriter wraps FILE and implements Writer.
-typedef struct {
-  Writer writer;
-  FILE *f_;
-} FileWriter;
+iface_impl_def(Writer, FileWriter, FILE *);
 
 #ifdef XSTD_IMPLEMENTATION
-static void file_writer_write(void *file, uint8_t *p, size_t p_len, size_t *n,
-                              int *error) {
-  FILE *f = *(void **)file;
+static void file_writer_write(InterfaceImpl impl, uint8_t *p, size_t p_len,
+                              size_t *n, int *error) {
+  typeof_iface_impl(FileWriter) f = cast_iface_impl(FileWriter, impl);
+
   size_t write = fwrite(p, sizeof(*p), p_len, f);
   if (n != NULL)
     *n = write;
@@ -71,38 +66,16 @@ struct xstd_writer_vtable file_writer_vtable;
 struct xstd_writer_vtable file_writer_vtable = {.write = &file_writer_write};
 #endif
 
-// file_writer_init initializes the given FileWriter.
-void file_writer_init(FileWriter *fw, FILE *f);
+// Generate file_writer_init, file_writer_new and file_writer constructors.
 
-#ifdef XSTD_IMPLEMENTATION
-void file_writer_init(FileWriter *fw, FILE *f) {
-  *fw = (FileWriter){0};
-  fw->writer.vtable_ = &file_writer_vtable;
-  fw->writer.offset_ = offsetof(FileWriter, f_);
-  fw->f_ = f;
-}
-#endif
+#undef type_init_proto
+#define type_init_proto FILE *f
+#undef type_init_args
+#define type_init_args f
+#undef type_init
+#define type_init                                                              \
+  { iface_impl_init(t, iface, &file_writer_vtable, f); }
 
-// file_writer_new allocates, initializes and returns a new FileWriter.
-FileWriter *file_writer_new(Allocator *allocator, FILE *f);
-
-#ifdef XSTD_IMPLEMENTATION
-FileWriter *file_writer_new(Allocator *allocator, FILE *f) {
-  FileWriter *fw = alloc_malloc(allocator, sizeof(FileWriter));
-  file_writer_init(fw, f);
-  return fw;
-}
-#endif
-
-// file_writer initializes and returns a FileWriter that wraps the given file.
-FileWriter file_writer(FILE *f);
-
-#ifdef XSTD_IMPLEMENTATION
-FileWriter file_writer(FILE *f) {
-  FileWriter fw = {0};
-  file_writer_init(&fw, f);
-  return fw;
-}
-#endif
+def_type_constructors(FileWriter, file_writer)
 
 #endif

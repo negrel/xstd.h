@@ -8,23 +8,24 @@
 START_TEST(test_bytes_buffer_get_set_append) {
   BytesBuffer buf = bytes_buffer(g_libc_allocator);
 
-  size_t appended = bytes_buffer_append(&buf, "Hello world!", 13, 1);
-  ck_assert_int_eq(appended, 13);
+  size_t appended =
+      bytes_buffer_append_bytes(&buf, "Hello world!", 13 * sizeof(char));
+  ck_assert_int_eq(appended, 13 * sizeof(char));
   ck_assert_str_eq("Hello world!", (const char *)bytes_buffer_bytes(&buf).data);
 
   // Erase null terminator.
-  bytes_buffer_set(&buf, bytes_buffer_length(&buf) - 1, (char)' ');
+  *bytes_buffer_get_ptr(&buf, bytes_buffer_length(&buf) - 1, char) = (char)' ';
 
   // Append another string.
-  appended = bytes_buffer_append(&buf, "Foo bar...", 11, 1);
-  ck_assert_int_eq(appended, 11);
+  appended = bytes_buffer_append_bytes(&buf, "Foo bar...", 11 * sizeof(char));
+  ck_assert_int_eq(appended, 11 * sizeof(char));
   ck_assert_str_eq("Hello world! Foo bar...",
                    (const char *)bytes_buffer_bytes(&buf).data);
 
   ck_assert_int_eq(bytes_buffer_get(&buf, 0, char), (char)'H');
   ck_assert_int_eq(bytes_buffer_get(&buf, 1, char), (char)'e');
 
-  bytes_buffer_deinit(&buf);
+  bytes_buffer_destroy(&buf);
 }
 END_TEST
 

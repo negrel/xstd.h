@@ -1,6 +1,6 @@
 include variables.mk
 
-HEADERS := alloc
+HEADERS := constructor iface alloc
 HEADERS += io/closer io/reader io/writer io/read_closer io/read_writer io/write_closer io/buf_reader
 HEADERS += bytes/slice bytes/buffer bytes/reader bytes/writer
 HEADERS += iter arena vec list
@@ -39,3 +39,4 @@ xstd.h: internal.h $(HEADERS)
 		| grep -Ev '^#include ".*"$$' > $@
 	$(MKDIR_P) $(BUILD_DIR)
 	$(CC) $(CFLAGS) -c $@ -o $(BUILD_DIR)/xstd.o
+	test "$$(grep -cn '#define XSTD_IMPLEMENTATION' < $@)" = "0"
