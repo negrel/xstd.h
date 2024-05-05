@@ -163,8 +163,8 @@ typedef void *InterfaceImpl;
 
 #ifdef XSTD_IMPLEMENTATION
 #include <assert.h>
-#include <stdint.h>
 #include <stdlib.h>
+#include <string.h>
 #endif
 
 
@@ -833,8 +833,11 @@ bool bytes_buffer_resize(BytesBuffer *buffer, size_t new_capacity) {
 }
 #endif
 
-#define bytes_buffer_append(buffer, data)                                      \
+#define bytes_buffer_push(buffer, data)                                        \
   bytes_buffer_append_bytes(buffer, data, sizeof(typeof(*data)))
+
+#define bytes_buffer_append(buffer, data, nmemb)                               \
+  bytes_buffer_append_bytes(buffer, data, sizeof(typeof(*data)) * nmemb)
 
 size_t bytes_buffer_append_bytes(BytesBuffer *buffer, void *data, size_t size);
 
@@ -1751,5 +1754,71 @@ struct xstd_iterator_vtable list_iterator_vtable = {
     iter.list_ = list;                                                         \
     return iter;                                                               \
   }
+
+#endif
+#ifndef XSTD_OPTION_H_INCLUDE
+#define XSTD_OPTION_H_INCLUDE
+
+#include <stdbool.h>
+
+#define Option(type)                                                           \
+  typedef union {                                                              \
+    bool is_some;                                                              \
+    type some;                                                                 \
+  }
+
+#define option_is_some(opt) opt.is_some
+
+#define option_is_none(opt) !opt.is_some
+
+#define OptionSome(OptionType, some)                                           \
+  (OptionType) { .is_some = true, .some = some }
+
+#define OptionNone(OptionType)                                                 \
+  (OptionType) { .is_some = false }
+
+#endif
+#ifndef XSTD_RESULT_H_INCLUDE
+#define XSTD_RESULT_H_INCLUDE
+
+#include <stdbool.h>
+
+#define Result(OkType, ErrType)                                                \
+  struct {                                                                     \
+    bool is_ok;                                                                \
+    union {                                                                    \
+      ErrType err;                                                             \
+      OkType ok;                                                               \
+    } data;                                                                    \
+  }
+
+#define result_is_ok(res) (res).is_ok
+
+#define result_is_err(res) !(res).is_ok
+
+#define ResultError(ResultType, err_value)                                     \
+  (ResultType) {                                                               \
+    .is_ok = false, .data = {                                                  \
+      .err = err_value,                                                        \
+    }                                                                          \
+  }
+
+#define ResultOk(ResultType, ok_value)                                         \
+  (ResultType) {                                                               \
+    .is_ok = true, .data = {                                                   \
+      .ok = ok_value,                                                          \
+    }                                                                          \
+  }
+
+#define ResultVoid(ErrType)                                                    \
+  struct {                                                                     \
+    bool is_ok;                                                                \
+    union {                                                                    \
+      ErrType err;                                                             \
+    } data;                                                                    \
+  }
+
+#define ResultOkVoid(ResultType)                                               \
+  (ResultType) { .is_ok = true }
 
 #endif

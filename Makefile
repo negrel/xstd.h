@@ -3,7 +3,7 @@ include variables.mk
 HEADERS := constructor iface alloc
 HEADERS += io/closer io/reader io/writer io/read_closer io/read_writer io/write_closer io/buf_reader
 HEADERS += bytes/slice bytes/buffer bytes/reader bytes/writer
-HEADERS += iter arena vec list
+HEADERS += iter arena vec list option result
 HEADERS := $(HEADERS:%=%.h)
 
 TEST_SRCS := $(HEADERS:%.h=$(TEST_DIR)/%.c)
