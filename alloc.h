@@ -8,8 +8,8 @@
 
 #ifdef XSTD_IMPLEMENTATION
 #include <assert.h>
-#include <stdint.h>
 #include <stdlib.h>
+#include <string.h>
 #endif
 
 #include "iface.h"
