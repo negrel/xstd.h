@@ -85,8 +85,11 @@ bool bytes_buffer_resize(BytesBuffer *buffer, size_t new_capacity) {
 }
 #endif
 
-#define bytes_buffer_append(buffer, data)                                      \
+#define bytes_buffer_push(buffer, data)                                        \
   bytes_buffer_append_bytes(buffer, data, sizeof(typeof(*data)))
+
+#define bytes_buffer_append(buffer, data, nmemb)                               \
+  bytes_buffer_append_bytes(buffer, data, sizeof(typeof(*data)) * nmemb)
 
 size_t bytes_buffer_append_bytes(BytesBuffer *buffer, void *data, size_t size);
 
