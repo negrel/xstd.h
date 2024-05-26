@@ -1,66 +1,41 @@
 #ifndef XSTD_ITER_H_INCLUDE
 #define XSTD_ITER_H_INCLUDE
 
-#include <stddef.h>
+#include <stdbool.h>
 #include <stdint.h>
-#include <string.h>
 
 #include "constructor.h"
 #include "iface.h"
 
 // Iterator interface.
 iface_def(
-    Iterator, struct xstd_iterator_vtable { void *(*next)(InterfaceImpl); });
+    Iterator,
+    struct xstd_iterator_vtable { bool (*next)(InterfaceImpl, void *); });
 
-#define iter_foreach(iter, type, iterator)                                     \
-  for (                                                                        \
-      struct {                                                                 \
-        size_t index;                                                          \
-        type value;                                                            \
-      } iterator =                                                             \
-          {                                                                    \
-              .index = 0,                                                      \
-             .value = iter_next(iter),                                         \
-          };                                                                   \
-      iterator.value != NULL;                                                  \
-      iterator.index++, iterator.value = iter_next(iter))
-
-void *iter_next(Iterator *);
+bool iter_next(Iterator *, void *);
 
 #ifdef XSTD_IMPLEMENTATION
-void *iter_next(Iterator *iter) { return iface_call_empty(iter, next); }
+bool iter_next(Iterator *iter, void *n) { return iface_call(iter, next, n); }
 #endif
-
-#define range_foreach(iterator, from, to, step)                                \
-  for (struct {                                                                \
-         short i;                                                              \
-         RangeIterator iter;                                                   \
-       } tmp = {.i = 0, .iter = range_iterator(from, to, step)};               \
-       tmp.i == 0; tmp.i = 1)                                                  \
-  iter_foreach((Iterator *)&tmp.iter, size_t *, iterator)
-
-#define range_to_foreach(i, to) range_foreach(i, 0, to, 1)
-#define range_from_to_foreach(i, from, to) range_foreach(i, from, to, 1)
 
 iface_impl_def(
     Iterator, RangeIterator, struct {
-      int64_t value;
-      int64_t end;
-      int64_t step;
+      intmax_t value;
+      intmax_t end;
+      intmax_t step;
     });
 
 #ifdef XSTD_IMPLEMENTATION
-static void *range_iterator_next(InterfaceImpl impl) {
+static bool range_iterator_next(InterfaceImpl impl, void *next) {
   typeof_iface_impl(RangeIterator) *b =
       cast_iface_impl_ptr(RangeIterator, impl);
 
-  b->value += b->step;
-  if (b->value >= b->end) {
-    b->value -= b->step;
-    return NULL;
-  }
+  *(intmax_t *)next = b->value;
 
-  return &b->value;
+  b->value += b->step;
+
+  return !((b->step > 0 && b->value >= b->end) ||
+           (b->step < 0 && b->value <= b->end));
 }
 #endif
 
@@ -83,7 +58,7 @@ struct xstd_iterator_vtable range_iterator_vtable = {
                     ((typeof_iface_impl(RangeIterator)){                       \
                         .end = end,                                            \
                         .step = step,                                          \
-                        .value = start - step,                                 \
+                        .value = start,                                        \
                     }))                                                        \
   }
 

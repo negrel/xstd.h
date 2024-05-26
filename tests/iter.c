@@ -1,4 +1,5 @@
 #include <check.h>
+#include <stdint.h>
 #include <stdlib.h>
 
 #define XSTD_IMPLEMENTATION
@@ -7,16 +8,19 @@
 START_TEST(test_range_iter) {
   // Simple iteration.
   size_t i = 0;
-  range_foreach(it, 0, 3, 1) {
-    ck_assert_int_eq(i, *it.value);
+  intmax_t iter;
+  for (RangeIterator range = range_iterator(0, 3, 1);
+       iter_next(&range.iface, &iter);) {
+    ck_assert_int_eq(i, iter);
     i++;
   }
   ck_assert_int_eq(i, 3);
 
   // Step bigger than end.
   i = 0;
-  range_foreach(it, 0, 3, 4) {
-    if (it.index == 0) {
+  for (RangeIterator range = range_iterator(0, 3, 4);
+       iter_next(&range.iface, &iter);) {
+    if (iter == 0) {
       ck_assert_int_eq(i, 0);
     } else {
       ck_assert_int_eq(i, 4);
