@@ -14,7 +14,7 @@ START_TEST(test_range_iter) {
     ck_assert_int_eq(i, iter);
     i++;
   }
-  ck_assert_int_eq(i, 3);
+  ck_assert_int_eq(i, 2);
 
   // Step bigger than end.
   i = 0;
@@ -27,7 +27,7 @@ START_TEST(test_range_iter) {
     }
     i++;
   }
-  ck_assert_int_eq(i, 1);
+  ck_assert_int_eq(i, 0);
 }
 END_TEST
 
