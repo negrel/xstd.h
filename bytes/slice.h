@@ -11,8 +11,8 @@
 // Slice define a slice/portion of a buffer. Slice doesn't own memory it
 // contains.
 typedef struct {
-  uint8_t *const data;
-  const size_t len;
+  uint8_t *data;
+  size_t len;
 } Slice;
 
 size_t slice_len(Slice *slice);
