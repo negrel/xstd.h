@@ -1,8 +1,8 @@
 #ifdef __clang__
 #define typeof __typeof__
 #else
-#ifndef typeof
-#define typeof assert(0 && "typeof macro is not defined")
+#ifdef __GNUC__
+#define typeof __typeof__
 #endif
 #endif
 
