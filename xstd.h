@@ -3,8 +3,8 @@
 #ifdef __clang__
 #define typeof __typeof__
 #else
-#ifndef typeof
-#define typeof assert(0 && "typeof macro is not defined")
+#ifdef __GNUC__
+#define typeof __typeof__
 #endif
 #endif
 
@@ -729,8 +729,8 @@ def_type_constructors(BufReader, buf_reader)
 // Slice define a slice/portion of a buffer. Slice doesn't own memory it
 // contains.
 typedef struct {
-  uint8_t *const data;
-  const size_t len;
+  uint8_t *data;
+  size_t len;
 } Slice;
 
 size_t slice_len(Slice *slice);
@@ -1046,64 +1046,39 @@ BytesBufferWriter bytes_buffer_writer(BytesBuffer *buffer) {
 #ifndef XSTD_ITER_H_INCLUDE
 #define XSTD_ITER_H_INCLUDE
 
-#include <stddef.h>
+#include <stdbool.h>
 #include <stdint.h>
-#include <string.h>
 
 
 // Iterator interface.
 iface_def(
-    Iterator, struct xstd_iterator_vtable { void *(*next)(InterfaceImpl); });
+    Iterator,
+    struct xstd_iterator_vtable { bool (*next)(InterfaceImpl, void *); });
 
-#define iter_foreach(iter, type, iterator)                                     \
-  for (                                                                        \
-      struct {                                                                 \
-        size_t index;                                                          \
-        type value;                                                            \
-      } iterator =                                                             \
-          {                                                                    \
-              .index = 0,                                                      \
-             .value = iter_next(iter),                                         \
-          };                                                                   \
-      iterator.value != NULL;                                                  \
-      iterator.index++, iterator.value = iter_next(iter))
-
-void *iter_next(Iterator *);
+bool iter_next(Iterator *, void *);
 
 #ifdef XSTD_IMPLEMENTATION
-void *iter_next(Iterator *iter) { return iface_call_empty(iter, next); }
+bool iter_next(Iterator *iter, void *n) { return iface_call(iter, next, n); }
 #endif
-
-#define range_foreach(iterator, from, to, step)                                \
-  for (struct {                                                                \
-         short i;                                                              \
-         RangeIterator iter;                                                   \
-       } tmp = {.i = 0, .iter = range_iterator(from, to, step)};               \
-       tmp.i == 0; tmp.i = 1)                                                  \
-  iter_foreach((Iterator *)&tmp.iter, size_t *, iterator)
-
-#define range_to_foreach(i, to) range_foreach(i, 0, to, 1)
-#define range_from_to_foreach(i, from, to) range_foreach(i, from, to, 1)
 
 iface_impl_def(
     Iterator, RangeIterator, struct {
-      int64_t value;
-      int64_t end;
-      int64_t step;
+      intmax_t value;
+      intmax_t end;
+      intmax_t step;
     });
 
 #ifdef XSTD_IMPLEMENTATION
-static void *range_iterator_next(InterfaceImpl impl) {
+static bool range_iterator_next(InterfaceImpl impl, void *next) {
   typeof_iface_impl(RangeIterator) *b =
       cast_iface_impl_ptr(RangeIterator, impl);
 
-  b->value += b->step;
-  if (b->value >= b->end) {
-    b->value -= b->step;
-    return NULL;
-  }
+  *(intmax_t *)next = b->value;
 
-  return &b->value;
+  b->value += b->step;
+
+  return !((b->step > 0 && b->value >= b->end) ||
+           (b->step < 0 && b->value <= b->end));
 }
 #endif
 
@@ -1126,7 +1101,7 @@ struct xstd_iterator_vtable range_iterator_vtable = {
                     ((typeof_iface_impl(RangeIterator)){                       \
                         .end = end,                                            \
                         .step = step,                                          \
-                        .value = start - step,                                 \
+                        .value = start,                                        \
                     }))                                                        \
   }
 
@@ -1278,482 +1253,6 @@ void arena_alloc_destroy(ArenaAllocator *arena_alloc) {
   arena_alloc->body_.arena_list_ = NULL;
 }
 #endif
-
-#endif
-// Single file header vector (growable array)
-// from xstd (https://github.com/negrel/xstd.h).
-
-#ifndef XSTD_VEC_H_INCLUDE
-#define XSTD_VEC_H_INCLUDE
-
-#include <stdbool.h>
-#include <stddef.h>
-
-#ifdef XSTD_IMPLEMENTATION
-#include <assert.h>
-#include <stdint.h>
-#include <string.h>
-#endif
-
-
-typedef void *Vec;
-
-struct xstd_vector {
-  // Header
-  Allocator *allocator_;
-  size_t cap_;
-  size_t len_;
-  size_t elem_size_;
-
-  // Body
-  // ...
-};
-
-// vec_foreach is a foreach macro for the vector type.
-// The first parameter is the vector on which to iterate. The
-// second is the name of the iterator. The index is accessible
-// with `iterator.index` and the value with `iterator.value`.
-#define vec_foreach(vec, iterator)                                             \
-  for (struct {                                                                \
-         size_t index;                                                         \
-         typeof(*vec) value;                                                   \
-       } iterator = {.value = vec[0]};                                         \
-       iterator.index < vec_len(vec); iterator.value = vec[++iterator.index])
-
-// vec_foreach_ptr does the same as vec_foreach
-// but the iterator contains a ptr instead of a copy.
-#define vec_foreach_ptr(vec, iterator)                                         \
-  for (struct {                                                                \
-         size_t index;                                                         \
-         typeof(vec) value;                                                    \
-       } iterator = {.value = &vec[0]};                                        \
-       iterator.index < vec_len(vec); iterator.value = &vec[++iterator.index])
-
-// vec_push returns a pointer to an element at the end of the vector.
-// This function takes a double pointer to a vector to reallocate in case it's
-// full.
-#define vec_push(vec) ((typeof(*vec))vec_push_((Vec *)vec))
-
-// vec_unshift adds an element at the beginning of the vector and shift
-// other elements.
-#define vec_unshift(vec) ((typeof(*vec))vec_unshift_((void **)vec))
-
-#define bodyof_vec(vecptr) ((uintptr_t)(vecptr) + sizeof(struct xstd_vector))
-#define headerof_vec(vecptr)                                                   \
-  ((struct xstd_vector *)((uintptr_t)vecptr - sizeof(struct xstd_vector)))
-
-#ifdef XSTD_IMPLEMENTATION
-static size_t sizeof_vector(struct xstd_vector *v) {
-  return sizeof(struct xstd_vector) + v->cap_ * v->elem_size_;
-}
-#endif
-
-// vec_new returns a new zeroed vector with the given capacity to store
-// element of the given size. It the returns a pointer to the first element of
-// the vector.
-Vec vec_new(Allocator *allocator, size_t cap, size_t elem_size);
-
-#ifdef XSTD_IMPLEMENTATION
-Vec vec_new(Allocator *allocator, size_t cap, size_t elem_size) {
-  size_t header = sizeof(struct xstd_vector);
-  size_t body = cap * elem_size;
-
-  struct xstd_vector *vec = alloc_calloc(allocator, header + body, 1);
-  if (vec == NULL)
-    return NULL;
-
-  vec->allocator_ = allocator;
-  vec->len_ = 0;
-  vec->cap_ = cap;
-  vec->elem_size_ = elem_size;
-
-  return (void *)bodyof_vec(vec);
-}
-#endif
-
-// vec_clone creates a clone of the given vector and returns it.
-Vec vec_clone(const Vec);
-
-#ifdef XSTD_IMPLEMENTATION
-Vec vec_clone(const Vec vec) {
-  assert(vec != NULL);
-
-  struct xstd_vector *v = headerof_vec(vec);
-  size_t size_v = sizeof_vector(v);
-
-  void *clone = alloc_malloc(v->allocator_, size_v);
-  if (clone == NULL)
-    return NULL;
-
-  memcpy(clone, v, size_v);
-
-  return (void *)bodyof_vec(clone);
-}
-#endif
-
-// vec_len returns the current len of the vector.
-size_t vec_len(const Vec);
-
-#ifdef XSTD_IMPLEMENTATION
-size_t vec_len(const Vec vec) {
-  assert(vec != NULL);
-
-  return headerof_vec(vec)->len_;
-}
-#endif
-
-// vec_cap returns the current capacity of the vector.
-size_t vec_cap(const Vec);
-
-#ifdef XSTD_IMPLEMENTATION
-size_t vec_cap(const Vec vec) {
-  assert(vec != NULL);
-
-  return headerof_vec(vec)->cap_;
-}
-#endif
-
-// vec_isfull returns true if the vector is full.
-bool vec_isfull(const Vec);
-
-#ifdef XSTD_IMPLEMENTATION
-bool vec_isfull(const Vec vec) {
-  assert(vec != NULL);
-
-  return vec_len(vec) == vec_cap(vec);
-}
-#endif
-
-// vec_isempty returns true if the vector size is 0.
-bool vec_isempty(const Vec);
-
-#ifdef XSTD_IMPLEMENTATION
-bool vec_isempty(const Vec vec) {
-  assert(vec != NULL);
-
-  return vec_len(vec) == 0;
-}
-#endif
-
-// vec_push_ returns a pointer to an element at the end of the vector.
-// This function takes a pointer to a vector to reallocate it if it's full.
-// An handy vec_push macro exists so you don't have to cast arguments and
-// return type.
-void *vec_push_(Vec *);
-
-#ifdef XSTD_IMPLEMENTATION
-void *vec_push_(void **vec) {
-  assert(vec != NULL);
-  assert(*vec != NULL);
-
-  if (vec_isfull(*vec)) {
-    // Let's double the capacity of our vector
-    struct xstd_vector *v = headerof_vec(*vec);
-    v->cap_ *= 2;
-    *vec =
-        (void *)bodyof_vec(alloc_realloc(v->allocator_, v, sizeof_vector(v)));
-  }
-
-  struct xstd_vector *v = headerof_vec(*vec);
-  size_t offset = v->elem_size_ * v->len_;
-
-  v->len_++;
-
-  return (void *)(bodyof_vec(v) + offset);
-}
-#endif
-
-// vec_pop removes the last element of the vector and store it in popped
-// if not null.
-void vec_pop(Vec, void *);
-
-#ifdef XSTD_IMPLEMENTATION
-
-void vec_pop(Vec vec, void *popped) {
-  assert(vec != NULL);
-
-  if (vec_isempty(vec))
-    return;
-
-  struct xstd_vector *v = headerof_vec(vec);
-  v->len_--;
-
-  if (popped != NULL)
-    memcpy(popped, (void *)((uintptr_t)vec + v->len_ * v->elem_size_),
-           v->elem_size_);
-}
-#endif
-
-// vec_shift removes the first element of the vector and store it shifted
-// if not null. Remaining elements are copied to their index - 1.
-void vec_shift(Vec, void *);
-
-#ifdef XSTD_IMPLEMENTATION
-void vec_shift(Vec vec, void *shifted) {
-  assert(vec != NULL);
-
-  if (vec_isempty(vec))
-    return;
-
-  struct xstd_vector *v = headerof_vec(vec);
-  if (shifted != NULL)
-    memcpy(shifted, vec, v->elem_size_);
-
-  v->len_--;
-
-  memmove((void *)bodyof_vec(v),
-          (void *)((uintptr_t)bodyof_vec(v) + v->elem_size_),
-          v->len_ * v->elem_size_);
-}
-#endif
-
-// vec_unshift_ adds an element at the beginning of the vector and shift
-// other elements.
-// An handy vec_unshift macro exists so you don't have to cast arguments and
-// return type.
-void *vec_unshift_(Vec *);
-
-#ifdef XSTD_IMPLEMENTATION
-
-void *vec_unshift_(void **vec) {
-  assert(vec != NULL);
-  assert(*vec != NULL);
-
-  if (vec_isfull(*vec)) {
-    // Let's double the capacity of our vector
-    struct xstd_vector *v = headerof_vec(*vec);
-    v->cap_ *= 2;
-    *vec =
-        (void *)bodyof_vec(alloc_realloc(v->allocator_, v, sizeof_vector(v)));
-  }
-
-  struct xstd_vector *v = headerof_vec(*vec);
-  // Move all elements by 1
-  memmove((void *)((uintptr_t)*vec + v->elem_size_), *vec,
-          v->len_ * v->elem_size_);
-  v->len_++;
-
-  return *vec;
-}
-#endif
-
-// vec_free free the given vector.
-void vec_free(const Vec);
-
-#ifdef XSTD_IMPLEMENTATION
-void vec_free(Vec vec) {
-  assert(vec != NULL);
-
-  struct xstd_vector *v = headerof_vec(vec);
-  alloc_free(v->allocator_, v);
-}
-#endif
-
-// vec_reset resets vector length to 0.
-void vec_reset(Vec);
-
-#ifdef XSTD_IMPLEMENTATION
-void vec_reset(Vec v) { headerof_vec(v)->len_ = 0; }
-#endif
-
-#define vec_resize(vec, new_size) vec_resize_((void **)vec, new_size)
-
-// vec_resize_ resizes vector to the given capacity.
-// An handy vec_resize macro exists so you don't have to cast arguments.
-void vec_resize_(Vec *, size_t);
-
-#ifdef XSTD_IMPLEMENTATION
-void vec_resize_(void **vec, size_t cap) {
-  struct xstd_vector *v = headerof_vec(*vec);
-  v->cap_ = cap;
-  *vec = (void *)bodyof_vec(alloc_realloc(v->allocator_, v, sizeof_vector(v)));
-}
-#endif
-
-#define vec_iter_foreach(vec, iterator)                                        \
-  for (struct {                                                                \
-         short i;                                                              \
-         VecIterator iter;                                                     \
-       } tmp = {.i = 0, .iter = vec_iter(vec)};                                \
-       tmp.i == 0; tmp.i = 1)                                                  \
-  iter_foreach((Iterator *)&tmp.iter, typeof(vec), iterator)
-
-struct xstd_vec_iterator_body {
-  size_t cursor_;
-  Vec vec_;
-};
-
-// VecIterator is a wrapper around Vec that implements the Iterator interface.
-// VecIterator pointer can safely be casted to Iterator *.
-typedef struct {
-  Iterator iterator;
-  struct xstd_vec_iterator_body body_;
-} VecIterator;
-
-#ifdef XSTD_IMPLEMENTATION
-static void *vec_iter_next(void *body) {
-  if (body == NULL)
-    return NULL;
-
-  struct xstd_vec_iterator_body *b = (struct xstd_vec_iterator_body *)body;
-  void *result = NULL;
-
-  struct xstd_vector *vec = headerof_vec(b->vec_);
-  if (b->cursor_ < vec->len_) {
-    result = (void *)((uintptr_t)(b->vec_) + b->cursor_ * vec->elem_size_);
-    b->cursor_++;
-  }
-
-  return result;
-}
-#endif
-
-struct xstd_iterator_vtable vec_iterator_vtable;
-
-#ifdef XSTD_IMPLEMENTATION
-struct xstd_iterator_vtable vec_iterator_vtable = {.next = &vec_iter_next};
-#endif
-
-// vec_iter creates a VecIterator that wraps the given vector.
-VecIterator vec_iter(const Vec vec);
-
-#ifdef XSTD_IMPLEMENTATION
-VecIterator vec_iter(const Vec vec) {
-  VecIterator iterator = {0};
-  iterator.iterator.vtable_ = &vec_iterator_vtable;
-  iterator.iterator.offset_ = offsetof(VecIterator, body_),
-  iterator.body_.cursor_ = 0;
-  iterator.body_.vec_ = vec;
-
-  return iterator;
-}
-#endif
-
-#endif
-#ifndef XSTD_LIST_H_INCLUDE
-#define XSTD_LIST_H_INCLUDE
-
-#ifdef XSTD_IMPLEMENTATION
-#include <stddef.h>
-#include <stdint.h>
-#endif
-
-
-// typedef a List structure with the given name and of the given type.
-#define typedef_list(type, name)                                               \
-  typedef struct _xstd_##name {                                                \
-    struct name *next_;                                                        \
-    type value;                                                                \
-  } name
-
-#define list_prepend(list, element)                                            \
-  do {                                                                         \
-    type_assert_eq(*(list), element);                                          \
-    list_prepend_((void **)list, (void *)element);                             \
-  } while (0)
-
-// list_prepend_ adds element to beginning of list, replacing its current head.
-// An handy list_prepend macro exists so you don't have to cast arguments.
-void list_prepend_(void **list, void *element);
-
-#ifdef XSTD_IMPLEMENTATION
-void list_prepend_(void **list, void *element) {
-  void **element_next = (void **)element;
-  *element_next = *list;
-  *list = element;
-}
-#endif
-
-#define list_next(list) ((typeof(list))list_next_(list))
-
-void *list_next_(void *list);
-
-#ifdef XSTD_IMPLEMENTATION
-void *list_next_(void *list) {
-  if (list == NULL)
-    return NULL;
-  return *((void **)list);
-}
-#endif
-
-#define list_remove(list, element)                                             \
-  do {                                                                         \
-    type_assert_eq(list, element);                                             \
-    list_remove_((void *)list, (void *)element);                               \
-  } while (0)
-
-// list_remove_ removes element from list but leave element untouched.
-// An handy list_remove macro exists so you don't have to cast arguments.
-void list_remove_(void *list, void *element);
-
-#ifdef XSTD_IMPLEMENTATION
-void list_remove_(void *list, void *element) {
-  if (element == NULL)
-    return;
-
-  void **list_next = (void **)list;
-
-  while (*list_next != NULL && *list_next != element) {
-    list_next = (void **)*list_next;
-  }
-
-  *list_next = list_next_(element);
-}
-#endif
-
-#define list_remove_next(list) (typeof(list))list_remove_next_(list)
-
-// list_remove_next_ removes next element of the given list without altering the
-// next element.
-void *list_remove_next_(void *list);
-
-#ifdef XSTD_IMPLEMENTATION
-void *list_remove_next_(void *list) {
-  void **list_next = (void **)list;
-  void *next = *list_next;
-  *list_next = list_next_(next);
-
-  return next;
-}
-#endif
-
-void *list_iter_next(void *list);
-
-#ifdef XSTD_IMPLEMENTATION
-void *list_iter_next(void *list) {
-  // 2nd field of list iterator (the list itself).
-  void **iterator_list_field_ptr = (void **)list;
-
-  void *next = *iterator_list_field_ptr;
-  *iterator_list_field_ptr = list_next_(*iterator_list_field_ptr);
-
-  return next;
-}
-#endif
-
-struct xstd_iterator_vtable list_iterator_vtable;
-
-#ifdef XSTD_IMPLEMENTATION
-struct xstd_iterator_vtable list_iterator_vtable = {
-    .next = &list_iter_next,
-};
-#endif
-
-#define typedef_list_iterator(list_type, type_name)                            \
-  typedef struct {                                                             \
-    Iterator iterator;                                                         \
-    list_type *list_;                                                          \
-  } type_name
-
-#define fndef_list_iterator_init(list_iter_type, list_type, fn_name)           \
-  list_iter_type fn_name(list_type *list);                                     \
-  list_iter_type fn_name(list_type *list) {                                    \
-    list_iter_type iter = {0};                                                 \
-    iter.iterator.vtable_ = &list_iterator_vtable;                             \
-    iter.iterator.offset_ = offsetof(list_iter_type, list_);                   \
-    iter.list_ = list;                                                         \
-    return iter;                                                               \
-  }
 
 #endif
 #ifndef XSTD_OPTION_H_INCLUDE
